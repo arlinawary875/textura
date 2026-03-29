@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Textura vs Yoga — DOM-free Layout Engine</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: Inter, sans-serif;
+      background: #09090b;
+      color: #e0e0e0;
+      min-height: 100vh;
+    }
+    .header {
+      text-align: center;
+      padding: 48px 20px 32px;
+    }
+    .header h1 {
+      font-size: 36px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+    .header h1 span { color: #e94560; }
+    .header p {
+      font-size: 15px;
+      color: #71717a;
+      max-width: 640px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+
+    .controls-bar {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      flex-wrap: wrap;
+      padding: 0 20px 28px;
+      align-items: center;
+    }
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .control-group label {
+      font-size: 12px;
+      font-weight: 500;
+      color: #71717a;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .control-group select, .control-group input[type="range"] {
+      background: #18181b;
+      border: 1px solid #27272a;
+      color: #e0e0e0;
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 13px;
+      font-family: Inter, sans-serif;
+    }
+    .control-group select { cursor: pointer; }
+    .control-group input[type="range"] { width: 160px; accent-color: #e94560; }
+    .control-group .value {
+      font-size: 13px;
+      color: #fff;
+      font-variant-numeric: tabular-nums;
+      min-width: 44px;
+      text-align: right;
+    }
+
+    .comparison {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0 24px 48px;
+    }
+    .panel {
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid #27272a;
+    }
+    .panel-title {
+      font-size: 15px;
+      font-weight: 600;
+    }
+    .panel-title.yoga { color: #71717a; }
+    .panel-title.textura { color: #e94560; }
+    .panel-badge {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+    .badge-warn { background: #422006; color: #fb923c; }
+    .badge-ok { background: #052e16; color: #4ade80; }
+    .panel-canvas {
+      display: block;
+      width: 100%;
+    }
+    .panel-footer {
+      padding: 12px 20px;
+      border-top: 1px solid #27272a;
+      font-size: 12px;
+      color: #52525b;
+      font-variant-numeric: tabular-nums;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .insight {
+      max-width: 1400px;
+      margin: 0 auto 48px;
+      padding: 0 24px;
+    }
+    .insight-box {
+      background: linear-gradient(135deg, #1a1025 0%, #18181b 100%);
+      border: 1px solid #27272a;
+      border-radius: 12px;
+      padding: 24px 28px;
+    }
+    .insight-box h3 {
+      font-size: 14px;
+      font-weight: 600;
+      color: #e94560;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .insight-box p {
+      font-size: 14px;
+      color: #a1a1aa;
+      line-height: 1.7;
+    }
+    .insight-box p + p { margin-top: 8px; }
+    .insight-box strong { color: #e0e0e0; }
+    #insight-text p { transition: opacity 0.2s; }
+
+    .perf-bar {
+      max-width: 1400px;
+      margin: 0 auto 48px;
+      padding: 0 24px;
+    }
+    .perf-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    .perf-card {
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+    }
+    .perf-card .perf-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: #fff;
+      font-variant-numeric: tabular-nums;
+    }
+    .perf-card .perf-value.accent { color: #e94560; }
+    .perf-card .perf-label {
+      font-size: 11px;
+      color: #71717a;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Yoga alone vs <span>Textura</span></h1>
+    <p>Yoga computes flexbox layout but cannot measure text — it needs fixed heights or guesses.
+       Textura wires in Pretext's canvas-based text measurement so every node gets exact geometry. No DOM. No reflow.</p>
+  </div>
+
+  <div class="controls-bar">
+    <div class="control-group">
+      <label>Scenario</label>
+      <select id="scenario">
+        <option value="chat">Chat Messages</option>
+        <option value="cards">Content Cards</option>
+        <option value="i18n">Multilingual Feed</option>
+        <option value="article">Article Layout</option>
+        <option value="stress">Stress Test (200 items)</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>Width</label>
+      <input type="range" id="width-slider" min="220" max="660" value="440" />
+      <span class="value" id="width-label">440px</span>
+    </div>
+    <div class="control-group">
+      <label>Font size</label>
+      <input type="range" id="font-slider" min="11" max="22" value="14" />
+      <span class="value" id="font-label">14px</span>
+    </div>
+  </div>
+
+  <div class="comparison">
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title yoga">Yoga Alone (estimated heights)</span>
+        <span class="panel-badge badge-warn">text blind</span>
+      </div>
+      <canvas id="canvas-yoga" class="panel-canvas"></canvas>
+      <div class="panel-footer">
+        <span id="yoga-time">—</span>
+        <span id="yoga-nodes">—</span>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title textura">Textura (measured text)</span>
+        <span class="panel-badge badge-ok">pixel-accurate</span>
+      </div>
+      <canvas id="canvas-textura" class="panel-canvas"></canvas>
+      <div class="panel-footer">
+        <span id="textura-time">—</span>
+        <span id="textura-nodes">—</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="perf-bar">
+    <div class="perf-grid">
+      <div class="perf-card">
+        <div class="perf-value" id="stat-overlap">—</div>
+        <div class="perf-label">Yoga overlaps / clips</div>
+      </div>
+      <div class="perf-card">
+        <div class="perf-value accent" id="stat-height-diff">—</div>
+        <div class="perf-label">Yoga height error</div>
+      </div>
+      <div class="perf-card">
+        <div class="perf-value accent" id="stat-resize-time">—</div>
+        <div class="perf-label">Textura resize (cached)</div>
+      </div>
+      <div class="perf-card">
+        <div class="perf-value" id="stat-dom-time">—</div>
+        <div class="perf-label">DOM measurement</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="insight">
+    <div class="insight-box">
+      <h3>What you're seeing</h3>
+      <div id="insight-text"></div>
+    </div>
+  </div>
+
+  <script type="module" src="./demo.ts"></script>
+</body>
+</html>
