@@ -242,8 +242,46 @@ function buildMorphTree(w: number, fontSize: number): BoxNode {
   }
 }
 
-type ScenarioKey = 'chat' | 'cards' | 'i18n' | 'article' | 'stress' | 'morph'
-const builders: Record<ScenarioKey, (w: number, fs: number) => BoxNode> = {
+// ── Virtual scroll message data ───────────────────────────────
+
+const scrollTexts = [
+  'Looks good, ship it.',
+  'Can you rebase on main?',
+  '+1',
+  'Fixed.',
+  'Thanks!',
+  'On it.',
+  'Merged.',
+  'Nice catch.',
+  'Meeting in 5 min.',
+  'The tests are passing now. I think we can merge this.',
+  'Has anyone seen the memory usage spike on staging? It jumped from 2GB to 8GB around 3am.',
+  'I just ran the benchmarks — 3x improvement. Cache hit rate went from 62% to 94% after the refactor.',
+  'Quick question: does the API support pagination for /users or do we need to implement it ourselves?',
+  'CI is failing on integration tests. Yesterday\'s migration broke the user lookup query. Rolling back.',
+  'I\'ve been investigating the memory leak. Event listeners aren\'t being cleaned up on unmount. The useEffect cleanup is missing in three components.',
+  'Design wants dark mode by Q2. We should start with the component library and work outward. Tokens are already in Figma.',
+  'Just got off a call with the enterprise customer. They need CSV export plus SAML SSO. Export is easy, SSO is a bigger lift — Q3 at earliest.',
+  'Thinking about real-time sync architecture. Three options: WebSockets with custom protocol, SSE for one-way, or CRDTs. Leaning CRDTs for offline-first. Each has trade-offs on complexity, bandwidth, and conflict resolution.',
+  'Dashboard perf review: initial load is sub-200ms but re-renders on data updates take 800ms+ because we rebuild the entire chart SVG. Need to switch to canvas rendering or at minimum memoize chart components. Flamegraph shows 60% in reconciliation.',
+  'After two days debugging, found the root cause. Our virtualized list estimates row heights by character count, which falls apart for CJK. Japanese full-width chars are ~2x wider than Latin, so estimates were off by 40-60%. Switched to canvas-based pre-measurement and scroll is finally smooth.',
+  'Proposal: stop using the browser for layout measurements. Every getBoundingClientRect triggers synchronous reflow — 73% of our frame budget on the messages page. A DOM-free layout engine could pre-compute all heights, eliminate layout thrashing, and enable Web Worker offloading. The entire computation could happen off the main thread.',
+  'Sprint retro: shipped new onboarding (conversion +12%), fixed WebSocket reconnection causing duplicate messages, started the sharding project. Next sprint: search rewrite and mobile notifications. Also need to address test flakiness — 3 intermittent failures this week.',
+  'The new text rendering pipeline is incredible. It handles Japanese kinsoku shori, Arabic bidirectional text, Thai word segmentation without spaces, and emoji ZWJ sequences — all from a single Intl.Segmenter + canvas measureText pipeline. 7,680 out of 7,680 accuracy tests passing across Chrome, Safari, and Firefox. No DOM touched at any point in the measurement chain.',
+]
+
+const scrollAuthors = ['Alice', 'Bob', 'Charlie', 'Diana', 'Eve', 'Frank', 'Grace', 'Henry', 'Iris', 'Jack']
+
+const VSCROLL_ITEM_COUNT = 10_000
+
+const scrollMessages: Message[] = Array.from({ length: VSCROLL_ITEM_COUNT }, (_, i) => ({
+  author: scrollAuthors[i % scrollAuthors.length]!,
+  text: scrollTexts[i % scrollTexts.length]!,
+  time: `${9 + Math.floor((i * 3) % 12)}:${String((i * 7) % 60).padStart(2, '0')}`,
+}))
+
+type ScenarioKey = 'chat' | 'cards' | 'i18n' | 'article' | 'stress' | 'morph' | 'vscroll'
+const builders: Record<Exclude<ScenarioKey, 'vscroll'>, (w: number, fs: number) => BoxNode> = {
   chat: buildChatTree, cards: buildCardsTree, i18n: buildI18nTree,
   article: buildArticleTree, stress: buildStressTree, morph: buildMorphTree,
 }
@@ -553,6 +591,9 @@ const insights: Record<ScenarioKey, string> = {
   stress: `<p><strong>200 variable-length items</strong> — the virtualization use case. Every real virtualized list needs to know row heights before rendering. Yoga alone forces you to either use fixed heights (ugly), render-then-measure (slow, causes layout shift), or estimate (inaccurate scroll positions, jumpy scrollbar).</p>
 <p>Textura's first call includes the one-time <code>prepare()</code> cost (canvas text measurement + segmentation). But on every subsequent resize, the cached hot path runs in <strong>under 1ms for all 200 items</strong>. Compare the "Textura resize" stat to "DOM measurement" — that's the real comparison. DOM measures every element with getBoundingClientRect, triggering layout reflow each time.</p>`,
 
+  vscroll: `<p><strong>The unsolved problem of frontend development.</strong> Every virtualized list needs row heights before rendering, but getting heights requires rendering — a catch-22. The workarounds are all bad: fixed heights (wastes space, truncates text), render-then-measure (slow, causes layout shift), or estimate (wrong scrollbar, jumpy scroll-to-index).</p>
+<p>Textura breaks the cycle. It pre-computes <strong>exact pixel heights for all 10,000 items</strong> without rendering a single DOM node. The right side has a perfectly-sized scrollbar from frame one. "Jump to item 5,000" lands on the exact pixel. On the left, estimated heights cause cumulative drift — by item 5,000, you're looking at the wrong item entirely. Try scrolling to the bottom and watch the item numbers diverge. This is why every chat app, email client, and data grid on the web has a janky scrollbar.</p>`,
+
   morph: `<p><strong>This is the demo neither Yoga nor Pretext can do alone.</strong> A complete dashboard UI is being continuously re-laid-out at 60fps as the width sweeps from 320px to 900px and back. Every single frame: Yoga computes the flex layout, Pretext measures all text at the new available widths, boxes resize, cards reflow from 1 to 2 to 3 columns — all in under 1ms.</p>
 <p><strong>Yoga alone</strong> (left) can compute the flex layout but has to guess text heights. Watch the red overflow zones — text spills out of its boxes at every width, and the errors compound as cards reflow. <strong>Pretext alone</strong> can measure text but has no layout engine — it can't compute where boxes go. <strong>The DOM</strong> can't do this at 60fps — continuous relayout triggers synchronous reflow on every frame, dropping to 15–20fps on complex layouts. Only Textura combines both engines to make this possible.</p>`,
 }
@@ -612,6 +653,7 @@ function measureWithDOM(tree: BoxNode | TextNode, containerWidth: number, fontSi
 
 function render() {
   const scenario = scenarioSelect.value as ScenarioKey
+  if (scenario === 'vscroll') return
   const containerWidth = parseInt(widthSlider.value)
   const fontSize = parseInt(fontSlider.value)
 
@@ -670,6 +712,294 @@ function render() {
   document.getElementById('stat-dom-time')!.textContent = `${domTime.toFixed(2)}ms`
 
   document.getElementById('insight-text')!.innerHTML = insights[scenario]
+}
+
+// ── Virtual Scroll ────────────────────────────────────────────
+
+interface VScrollState {
+  texturaHeights: number[]
+  estimatedHeights: number[]
+  texturaPrefixSums: Float64Array
+  estimatedPrefixSums: Float64Array
+  computeTime: number
+  width: number
+  fontSize: number
+}
+
+let vscrollState: VScrollState | null = null
+let vscrollTop = 0
+const VSCROLL_VIEWPORT_H = 600
+
+function buildScrollItemTree(msg: Message, containerWidth: number, fontSize: number): BoxNode {
+  return {
+    width: containerWidth, flexDirection: 'row', gap: 8, padding: 8,
+    children: [
+      { width: 28, height: 28 },
+      {
+        flexDirection: 'column', flexGrow: 1, flexShrink: 1, gap: 2,
+        children: [
+          { text: `${msg.author}  ${msg.time}`, font: `600 ${fontSize - 1}px Inter`, lineHeight: Math.round((fontSize - 1) * 1.3) } satisfies TextNode,
+          { text: msg.text, font: `${fontSize}px Inter`, lineHeight: Math.round(fontSize * 1.5) } satisfies TextNode,
+        ],
+      } satisfies BoxNode,
+    ],
+  }
+}
+
+function computeVScrollHeights(containerWidth: number, fontSize: number): VScrollState {
+  const t0 = performance.now()
+
+  // Build one big column tree and compute layout once
+  const tree: BoxNode = {
+    width: containerWidth, flexDirection: 'column',
+    children: scrollMessages.map(m => buildScrollItemTree(m, containerWidth, fontSize)),
+  }
+  const layout = computeLayout(tree, { width: containerWidth })
+  const texturaHeights = layout.children.map(c => c.height)
+
+  const computeTime = performance.now() - t0
+
+  // Estimate heights with heuristic (what Yoga alone would do)
+  const avgCharWidth = fontSize * 0.52
+  const lineHeight = Math.round(fontSize * 1.5)
+  const authorLineH = Math.round((fontSize - 1) * 1.3)
+  const estimatedHeights = scrollMessages.map(m => {
+    const textWidth = containerWidth - 28 - 8 - 16 // avatar + gap + padding
+    const charsPerLine = Math.max(1, Math.floor(textWidth / avgCharWidth))
+    const textLines = Math.max(1, Math.ceil(m.text.length / charsPerLine))
+    return 16 + authorLineH + 2 + textLines * lineHeight // padding*2 + author + gap + text
+  })
+
+  const texturaPrefixSums = buildPrefixSums(texturaHeights)
+  const estimatedPrefixSums = buildPrefixSums(estimatedHeights)
+
+  return { texturaHeights, estimatedHeights, texturaPrefixSums, estimatedPrefixSums, computeTime, width: containerWidth, fontSize }
+}
+
+function buildPrefixSums(heights: number[]): Float64Array {
+  const sums = new Float64Array(heights.length + 1)
+  for (let i = 0; i < heights.length; i++) {
+    sums[i + 1] = sums[i]! + heights[i]!
+  }
+  return sums
+}
+
+function findFirstVisible(prefixSums: Float64Array, scrollTop: number): number {
+  let lo = 0, hi = prefixSums.length - 2
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if (prefixSums[mid + 1]! <= scrollTop) lo = mid + 1
+    else hi = mid
+  }
+  return lo
+}
+
+function startVScroll() {
+  document.getElementById('vscroll-bar')!.classList.add('active')
+
+  const containerWidth = parseInt(widthSlider.value)
+  const fontSize = parseInt(fontSlider.value)
+
+  vscrollState = computeVScrollHeights(containerWidth, fontSize)
+  vscrollTop = 0
+
+  renderVScroll()
+}
+
+function stopVScroll() {
+  document.getElementById('vscroll-bar')!.classList.remove('active')
+  vscrollState = null
+}
+
+function renderVScroll() {
+  if (!vscrollState) return
+  const state = vscrollState
+
+  const texturaTotalH = state.texturaPrefixSums[state.texturaPrefixSums.length - 1]!
+  const estimatedTotalH = state.estimatedPrefixSums[state.estimatedPrefixSums.length - 1]!
+
+  // Clamp scroll
+  const maxScroll = Math.max(0, texturaTotalH - VSCROLL_VIEWPORT_H)
+  vscrollTop = Math.max(0, Math.min(vscrollTop, maxScroll))
+
+  const canvasH = VSCROLL_VIEWPORT_H
+
+  const ctxE = setupCanvas(canvasYoga, canvasH)
+  const ctxT = setupCanvas(canvasTextura, canvasH)
+  const panelW = canvasYoga.clientWidth
+
+  // Clear
+  ctxE.fillStyle = palette.bg
+  ctxE.fillRect(0, 0, panelW, canvasH)
+  ctxT.fillStyle = palette.bg
+  ctxT.fillRect(0, 0, panelW, canvasH)
+
+  // Render both viewports at the same scrollTop
+  const scrollbarW = 10
+  const contentW = Math.min(panelW - scrollbarW - 8, state.width)
+  const offsetX = Math.max(0, (panelW - scrollbarW - contentW) / 2)
+
+  const estFirstIdx = renderVScrollViewport(ctxE, state.estimatedHeights, state.estimatedPrefixSums, estimatedTotalH, contentW, offsetX, panelW, true)
+  const texFirstIdx = renderVScrollViewport(ctxT, state.texturaHeights, state.texturaPrefixSums, texturaTotalH, contentW, offsetX, panelW, false)
+
+  // Update stats
+  const heightError = Math.abs(texturaTotalH - estimatedTotalH)
+  const drift = Math.abs(estFirstIdx - texFirstIdx)
+
+  document.getElementById('yoga-time')!.textContent = `Estimated total: ${Math.round(estimatedTotalH).toLocaleString()}px`
+  document.getElementById('yoga-nodes')!.textContent = `Showing item ${estFirstIdx + 1}`
+  document.getElementById('textura-time')!.textContent = `Accurate total: ${Math.round(texturaTotalH).toLocaleString()}px`
+  document.getElementById('textura-nodes')!.textContent = `Showing item ${texFirstIdx + 1}`
+
+  document.getElementById('stat-overlap')!.textContent = `${drift}`
+  document.getElementById('stat-height-diff')!.textContent = `${Math.round(heightError).toLocaleString()}px`
+  document.getElementById('stat-resize-time')!.textContent = `${state.computeTime.toFixed(0)}ms`
+  document.getElementById('stat-dom-time')!.textContent = `${VSCROLL_ITEM_COUNT.toLocaleString()}`
+
+  // Perf card labels update
+  document.getElementById('vscroll-count')!.textContent = VSCROLL_ITEM_COUNT.toLocaleString()
+  document.getElementById('vscroll-time')!.textContent = `${state.computeTime.toFixed(0)}ms`
+  document.getElementById('vscroll-drift')!.textContent = drift > 0 ? `${drift} items` : 'None'
+  document.getElementById('vscroll-drift')!.className = `vscroll-stat-value ${drift === 0 ? 'good' : drift < 50 ? 'warn' : 'bad'}`
+  document.getElementById('vscroll-height-err')!.textContent = `${Math.round(heightError).toLocaleString()}px`
+
+  document.getElementById('insight-text')!.innerHTML = insights['vscroll']
+}
+
+function renderVScrollViewport(
+  ctx: CanvasRenderingContext2D,
+  heights: number[],
+  prefixSums: Float64Array,
+  totalHeight: number,
+  contentW: number,
+  offsetX: number,
+  panelW: number,
+  isEstimated: boolean,
+): number {
+  const viewportH = VSCROLL_VIEWPORT_H
+  const scrollbarW = 10
+  const fontSize = vscrollState!.fontSize
+  const lineHeight = Math.round(fontSize * 1.5)
+  const authorLineH = Math.round((fontSize - 1) * 1.3)
+
+  // Find first visible item
+  const firstIdx = findFirstVisible(prefixSums, vscrollTop)
+  let y = prefixSums[firstIdx]! - vscrollTop
+
+  // Clip to viewport
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(0, 0, panelW - scrollbarW - 4, viewportH)
+  ctx.clip()
+
+  for (let i = firstIdx; i < scrollMessages.length && y < viewportH; i++) {
+    const msg = scrollMessages[i]!
+    const itemH = heights[i]!
+
+    if (y + itemH < 0) { y += itemH; continue }
+
+    const x = offsetX
+    const cardX = x + 4
+    const cardW = contentW - 8
+
+    // Card background
+    ctx.fillStyle = palette.card
+    roundRect(ctx, cardX, y + 1, cardW, itemH - 2, 6)
+    ctx.fill()
+    ctx.strokeStyle = palette.cardBorder
+    ctx.lineWidth = 0.5
+    roundRect(ctx, cardX, y + 1, cardW, itemH - 2, 6)
+    ctx.stroke()
+
+    // Avatar
+    ctx.fillStyle = i % 3 === 0 ? palette.avatar : i % 3 === 1 ? palette.avatarAlt : '#10b981'
+    roundRect(ctx, cardX + 4, y + 5, 28, 28, 14)
+    ctx.fill()
+
+    // Author + time
+    const textX = cardX + 40
+    const textMaxW = cardW - 48
+    ctx.font = `600 ${fontSize - 1}px Inter`
+    ctx.fillStyle = palette.accent
+    ctx.fillText(msg.author, textX, y + 20)
+    const aw = ctx.measureText(msg.author).width
+    ctx.font = `${fontSize - 2}px Inter`
+    ctx.fillStyle = palette.textDim
+    ctx.fillText(`  ${msg.time}`, textX + aw, y + 20)
+
+    // Message text (wrap and render, allow overflow for estimated side)
+    const msgTextY = y + 20 + authorLineH
+    ctx.font = `${fontSize}px Inter`
+    ctx.fillStyle = palette.text
+
+    const words = msg.text.split(' ')
+    let line = ''
+    let ly = msgTextY + lineHeight * 0.76
+    const maxLy = y + itemH - 4 // bottom of allocated box
+
+    for (const word of words) {
+      const test = line ? `${line} ${word}` : word
+      if (ctx.measureText(test).width > textMaxW && line) {
+        ctx.fillText(line, textX, ly)
+        line = word
+        ly += lineHeight
+      } else {
+        line = test
+      }
+    }
+    if (line) {
+      ctx.fillText(line, textX, ly)
+    }
+
+    // Overflow indicator
+    if (isEstimated && ly > maxLy + 2) {
+      ctx.fillStyle = palette.overlap
+      ctx.fillRect(cardX, y + itemH - 1, cardW, Math.min(ly - maxLy + lineHeight * 0.3, itemH * 0.5))
+    }
+
+    // Item index label
+    ctx.font = '500 10px Inter'
+    ctx.fillStyle = palette.textDim
+    ctx.fillText(`#${i + 1}`, cardX + cardW - ctx.measureText(`#${i + 1}`).width - 6, y + 14)
+
+    y += itemH
+  }
+
+  ctx.restore()
+
+  // Scrollbar
+  const thumbH = Math.max(24, viewportH / totalHeight * viewportH)
+  const maxThumbY = viewportH - thumbH
+  const scrollFraction = totalHeight <= viewportH ? 0 : vscrollTop / (totalHeight - viewportH)
+  const thumbY = scrollFraction * maxThumbY
+
+  // Track
+  ctx.fillStyle = '#1c1c20'
+  roundRect(ctx, panelW - scrollbarW - 2, 0, scrollbarW, viewportH, 5)
+  ctx.fill()
+
+  // Thumb
+  ctx.fillStyle = isEstimated ? '#fb923c80' : '#4ade8080'
+  roundRect(ctx, panelW - scrollbarW - 2, thumbY, scrollbarW, thumbH, 5)
+  ctx.fill()
+  ctx.fillStyle = isEstimated ? '#fb923c' : '#4ade80'
+  roundRect(ctx, panelW - scrollbarW, thumbY + 2, scrollbarW - 4, thumbH - 4, 4)
+  ctx.fill()
+
+  // Position label
+  const pct = Math.round(scrollFraction * 100)
+  ctx.save()
+  ctx.font = '600 11px Inter'
+  const posText = `${pct}%`
+  ctx.fillStyle = 'rgba(0,0,0,0.7)'
+  const ptw = ctx.measureText(posText).width
+  roundRect(ctx, panelW - scrollbarW - ptw - 16, thumbY + thumbH / 2 - 9, ptw + 10, 18, 4)
+  ctx.fill()
+  ctx.fillStyle = isEstimated ? '#fb923c' : '#4ade80'
+  ctx.fillText(posText, panelW - scrollbarW - ptw - 11, thumbY + thumbH / 2 + 4)
+  ctx.restore()
+
+  return firstIdx
 }
 
 // ── Morph animation ───────────────────────────────────────────
@@ -818,11 +1148,16 @@ function drawFpsOverlay(ctx: CanvasRenderingContext2D, panelW: number, frameTime
 function onScenarioChange() {
   const scenario = scenarioSelect.value as ScenarioKey
   stopMorph()
+  stopVScroll()
 
   if (scenario === 'morph') {
     widthSlider.disabled = true
     widthSlider.style.opacity = '0.3'
     startMorph()
+  } else if (scenario === 'vscroll') {
+    widthSlider.disabled = false
+    widthSlider.style.opacity = '1'
+    startVScroll()
   } else {
     widthSlider.disabled = false
     widthSlider.style.opacity = '1'
@@ -834,17 +1169,61 @@ render()
 
 widthSlider.addEventListener('input', () => {
   widthLabel.textContent = `${widthSlider.value}px`
-  render()
+  if (scenarioSelect.value === 'vscroll') {
+    const w = parseInt(widthSlider.value)
+    const fs = parseInt(fontSlider.value)
+    vscrollState = computeVScrollHeights(w, fs)
+    vscrollTop = 0
+    renderVScroll()
+  } else {
+    render()
+  }
 })
 
 fontSlider.addEventListener('input', () => {
   fontLabel.textContent = `${fontSlider.value}px`
-  if (scenarioSelect.value === 'morph') return // font change picked up next frame
+  if (scenarioSelect.value === 'morph') return
+  if (scenarioSelect.value === 'vscroll') {
+    const w = parseInt(widthSlider.value)
+    const fs = parseInt(fontSlider.value)
+    vscrollState = computeVScrollHeights(w, fs)
+    vscrollTop = 0
+    renderVScroll()
+    return
+  }
   render()
 })
 
 scenarioSelect.addEventListener('change', onScenarioChange)
 
 window.addEventListener('resize', () => {
-  if (scenarioSelect.value !== 'morph') render()
+  if (scenarioSelect.value === 'morph') return
+  if (scenarioSelect.value === 'vscroll') { renderVScroll(); return }
+  render()
+})
+
+// Wheel scrolling for virtual scroll
+function onWheel(e: WheelEvent) {
+  if (scenarioSelect.value !== 'vscroll' || !vscrollState) return
+  e.preventDefault()
+  vscrollTop += e.deltaY
+  renderVScroll()
+}
+
+canvasYoga.addEventListener('wheel', onWheel, { passive: false })
+canvasTextura.addEventListener('wheel', onWheel, { passive: false })
+
+// Jump-to-index
+document.getElementById('vscroll-jump-btn')!.addEventListener('click', () => {
+  if (!vscrollState) return
+  const input = document.getElementById('vscroll-jump-input') as HTMLInputElement
+  const idx = Math.max(0, Math.min(VSCROLL_ITEM_COUNT - 1, parseInt(input.value) - 1))
+  vscrollTop = vscrollState.texturaPrefixSums[idx]!
+  renderVScroll()
+})
+
+document.getElementById('vscroll-jump-input')!.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    document.getElementById('vscroll-jump-btn')!.click()
+  }
 })

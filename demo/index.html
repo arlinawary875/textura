@@ -247,6 +247,77 @@
     }
     .morph-frame-graph .bar.slow { background: #fb923c; }
     .morph-frame-graph .bar.jank { background: #ef4444; }
+
+    .vscroll-bar {
+      max-width: 1400px;
+      margin: 0 auto 24px;
+      padding: 0 24px;
+      display: none;
+    }
+    .vscroll-bar.active { display: block; }
+    .vscroll-inner {
+      background: linear-gradient(135deg, #0f1a2e 0%, #18181b 100%);
+      border: 1px solid #27272a;
+      border-radius: 12px;
+      padding: 20px 28px;
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      flex-wrap: wrap;
+    }
+    .vscroll-stat { text-align: center; }
+    .vscroll-stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: #fff;
+      font-variant-numeric: tabular-nums;
+    }
+    .vscroll-stat-value.good { color: #4ade80; }
+    .vscroll-stat-value.warn { color: #fb923c; }
+    .vscroll-stat-value.bad { color: #ef4444; }
+    .vscroll-stat-label {
+      font-size: 11px;
+      color: #71717a;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-top: 2px;
+    }
+    .vscroll-jump {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+    }
+    .vscroll-jump label {
+      font-size: 12px;
+      font-weight: 500;
+      color: #71717a;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .vscroll-jump input {
+      background: #18181b;
+      border: 1px solid #27272a;
+      color: #e0e0e0;
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 13px;
+      font-family: Inter, sans-serif;
+      width: 90px;
+      font-variant-numeric: tabular-nums;
+    }
+    .vscroll-jump button {
+      background: #e94560;
+      border: none;
+      color: #fff;
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: Inter, sans-serif;
+      cursor: pointer;
+    }
+    .vscroll-jump button:hover { background: #d13a54; }
   </style>
 </head>
 <body>
@@ -266,6 +337,7 @@
         <option value="article">Article Layout</option>
         <option value="stress">Stress Test (200 items)</option>
         <option value="morph">Responsive Morph (60fps)</option>
+        <option value="vscroll">Virtual Scroll (10k items)</option>
       </select>
     </div>
     <div class="control-group">
@@ -301,6 +373,32 @@
       <div class="panel-footer">
         <span id="textura-time">—</span>
         <span id="textura-nodes">—</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="vscroll-bar" id="vscroll-bar">
+    <div class="vscroll-inner">
+      <div class="vscroll-stat">
+        <div class="vscroll-stat-value good" id="vscroll-count">—</div>
+        <div class="vscroll-stat-label">Items pre-computed</div>
+      </div>
+      <div class="vscroll-stat">
+        <div class="vscroll-stat-value good" id="vscroll-time">—</div>
+        <div class="vscroll-stat-label">Computation time</div>
+      </div>
+      <div class="vscroll-stat">
+        <div class="vscroll-stat-value bad" id="vscroll-drift">—</div>
+        <div class="vscroll-stat-label">Estimated item drift</div>
+      </div>
+      <div class="vscroll-stat">
+        <div class="vscroll-stat-value warn" id="vscroll-height-err">—</div>
+        <div class="vscroll-stat-label">Total height error</div>
+      </div>
+      <div class="vscroll-jump">
+        <label>Jump to item</label>
+        <input type="number" id="vscroll-jump-input" min="1" max="10000" value="5000" />
+        <button id="vscroll-jump-btn">Go</button>
       </div>
     </div>
   </div>
