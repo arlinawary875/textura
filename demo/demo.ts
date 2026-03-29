@@ -280,8 +280,8 @@ const scrollMessages: Message[] = Array.from({ length: VSCROLL_ITEM_COUNT }, (_,
   time: `${9 + Math.floor((i * 3) % 12)}:${String((i * 7) % 60).padStart(2, '0')}`,
 }))
 
-type ScenarioKey = 'chat' | 'cards' | 'i18n' | 'article' | 'stress' | 'morph' | 'vscroll'
-const builders: Record<Exclude<ScenarioKey, 'vscroll'>, (w: number, fs: number) => BoxNode> = {
+type ScenarioKey = 'chat' | 'cards' | 'i18n' | 'article' | 'stress' | 'morph' | 'vscroll' | 'editor'
+const builders: Record<Exclude<ScenarioKey, 'vscroll' | 'editor'>, (w: number, fs: number) => BoxNode> = {
   chat: buildChatTree, cards: buildCardsTree, i18n: buildI18nTree,
   article: buildArticleTree, stress: buildStressTree, morph: buildMorphTree,
 }
@@ -594,6 +594,9 @@ const insights: Record<ScenarioKey, string> = {
   vscroll: `<p><strong>The unsolved problem of frontend development.</strong> Every virtualized list needs row heights before rendering, but getting heights requires rendering — a catch-22. The workarounds are all bad: fixed heights (wastes space, truncates text), render-then-measure (slow, causes layout shift), or estimate (wrong scrollbar, jumpy scroll-to-index).</p>
 <p>Textura breaks the cycle. It pre-computes <strong>exact pixel heights for all 10,000 items</strong> without rendering a single DOM node. The right side has a perfectly-sized scrollbar from frame one. "Jump to item 5,000" lands on the exact pixel. On the left, estimated heights cause cumulative drift — by item 5,000, you're looking at the wrong item entirely. Try scrolling to the bottom and watch the item numbers diverge. This is why every chat app, email client, and data grid on the web has a janky scrollbar.</p>`,
 
+  editor: `<p><strong>This is the technology behind the next generation of design tools.</strong> Every element on this poster — titles, body text, feature cards, statistics, pull quotes — is laid out using Textura's flexbox engine with pixel-perfect text measurement. The entire layout computation happens in under 1ms. Zero DOM nodes are used.</p>
+<p>Drag the blue resize handle on the right edge of the poster (Textura side). Watch cards reflow from 3 columns to 2 to 1. Watch text re-wrap across every container. Watch heights auto-adjust and siblings reposition. This is what Canva, Figma, and every canvas-based design editor has struggled with: <strong>accurate text-aware auto-layout without the DOM</strong>. With Textura, it's a single function call.</p>`,
+
   morph: `<p><strong>This is the demo neither Yoga nor Pretext can do alone.</strong> A complete dashboard UI is being continuously re-laid-out at 60fps as the width sweeps from 320px to 900px and back. Every single frame: Yoga computes the flex layout, Pretext measures all text at the new available widths, boxes resize, cards reflow from 1 to 2 to 3 columns — all in under 1ms.</p>
 <p><strong>Yoga alone</strong> (left) can compute the flex layout but has to guess text heights. Watch the red overflow zones — text spills out of its boxes at every width, and the errors compound as cards reflow. <strong>Pretext alone</strong> can measure text but has no layout engine — it can't compute where boxes go. <strong>The DOM</strong> can't do this at 60fps — continuous relayout triggers synchronous reflow on every frame, dropping to 15–20fps on complex layouts. Only Textura combines both engines to make this possible.</p>`,
 }
@@ -653,7 +656,7 @@ function measureWithDOM(tree: BoxNode | TextNode, containerWidth: number, fontSi
 
 function render() {
   const scenario = scenarioSelect.value as ScenarioKey
-  if (scenario === 'vscroll') return
+  if (scenario === 'vscroll' || scenario === 'editor') return
   const containerWidth = parseInt(widthSlider.value)
   const fontSize = parseInt(fontSlider.value)
 
@@ -1002,6 +1005,380 @@ function renderVScrollViewport(
   return firstIdx
 }
 
+// ── Design Editor ─────────────────────────────────────────────
+
+let editorPosterWidth = 600
+let editorDragging = false
+
+function buildEditorTree(w: number, fontSize: number): BoxNode {
+  const innerPad = 32
+  const innerW = w - innerPad * 2
+  const cardGap = 16
+  const cols = w >= 600 ? 3 : w >= 400 ? 2 : 1
+  const cardW = (innerW - cardGap * (cols - 1)) / cols
+
+  const statGap = 12
+  const statCols = w >= 500 ? 4 : 2
+  const statW = (innerW - statGap * (statCols - 1)) / statCols
+
+  return {
+    width: w, flexDirection: 'column', padding: innerPad, gap: 24,
+    children: [
+      // Header
+      {
+        flexDirection: 'column', gap: 8,
+        children: [
+          { text: 'Textura', font: `700 ${fontSize + 16}px Inter`, lineHeight: Math.round((fontSize + 16) * 1.15) } satisfies TextNode,
+          { text: 'DOM-Free Layout Engine', font: `300 ${fontSize + 6}px Inter`, lineHeight: Math.round((fontSize + 6) * 1.4) } satisfies TextNode,
+          { text: 'Pixel-perfect text measurement meets flexbox layout — compute exact positions for every element without touching the browser\'s layout system.', font: `${fontSize}px Inter`, lineHeight: Math.round(fontSize * 1.6) } satisfies TextNode,
+        ],
+      } satisfies BoxNode,
+      // Feature cards
+      {
+        flexDirection: 'row', flexWrap: 'wrap', gap: cardGap,
+        children: [
+          {
+            flexDirection: 'column', width: cardW, padding: 20, gap: 10,
+            children: [
+              { width: 36, height: 36 },
+              { text: 'Canvas Rendering', font: `600 ${fontSize + 1}px Inter`, lineHeight: Math.round((fontSize + 1) * 1.3) } satisfies TextNode,
+              { text: 'Build complete UIs on canvas or WebGL. Chat apps, data grids, game HUDs — full flexbox layout with accurate text wrapping, no DOM required.', font: `${fontSize - 1}px Inter`, lineHeight: Math.round((fontSize - 1) * 1.55) } satisfies TextNode,
+            ],
+          } satisfies BoxNode,
+          {
+            flexDirection: 'column', width: cardW, padding: 20, gap: 10,
+            children: [
+              { width: 36, height: 36 },
+              { text: 'Worker Thread', font: `600 ${fontSize + 1}px Inter`, lineHeight: Math.round((fontSize + 1) * 1.3) } satisfies TextNode,
+              { text: 'Move layout computation entirely off the main thread. The UI never blocks on measurement. Send only coordinates to the main thread for painting.', font: `${fontSize - 1}px Inter`, lineHeight: Math.round((fontSize - 1) * 1.55) } satisfies TextNode,
+            ],
+          } satisfies BoxNode,
+          {
+            flexDirection: 'column', width: cardW, padding: 20, gap: 10,
+            children: [
+              { width: 36, height: 36 },
+              { text: 'Server-Side Layout', font: `600 ${fontSize + 1}px Inter`, lineHeight: Math.round((fontSize + 1) * 1.3) } satisfies TextNode,
+              { text: 'Pre-compute pixel positions on the server. Eliminate layout shift. SSR that knows where everything goes before the first paint.', font: `${fontSize - 1}px Inter`, lineHeight: Math.round((fontSize - 1) * 1.55) } satisfies TextNode,
+            ],
+          } satisfies BoxNode,
+        ],
+      } satisfies BoxNode,
+      // Pull quote
+      {
+        flexDirection: 'column', padding: 24, gap: 8,
+        children: [
+          { text: '"We eliminated 100% of our layout shift by pre-computing exact heights for every component before the first paint. The entire virtual list — 50,000 rows — renders with a pixel-perfect scrollbar from frame one."', font: `italic ${fontSize + 1}px Inter`, lineHeight: Math.round((fontSize + 1) * 1.65) } satisfies TextNode,
+          { text: '— Engineering Lead, Series C Startup', font: `500 ${fontSize - 1}px Inter`, lineHeight: Math.round((fontSize - 1) * 1.4) } satisfies TextNode,
+        ],
+      } satisfies BoxNode,
+      // Stats row
+      {
+        flexDirection: 'row', flexWrap: 'wrap', gap: statGap,
+        children: [
+          { flexDirection: 'column', width: statW, padding: 16, gap: 4, alignItems: 'center',
+            children: [
+              { text: '7,680', font: `700 ${fontSize + 8}px Inter`, lineHeight: Math.round((fontSize + 8) * 1.2) } satisfies TextNode,
+              { text: 'Accuracy tests', font: `${fontSize - 2}px Inter`, lineHeight: Math.round((fontSize - 2) * 1.4) } satisfies TextNode,
+            ],
+          } satisfies BoxNode,
+          { flexDirection: 'column', width: statW, padding: 16, gap: 4, alignItems: 'center',
+            children: [
+              { text: '0ms', font: `700 ${fontSize + 8}px Inter`, lineHeight: Math.round((fontSize + 8) * 1.2) } satisfies TextNode,
+              { text: 'Layout shift', font: `${fontSize - 2}px Inter`, lineHeight: Math.round((fontSize - 2) * 1.4) } satisfies TextNode,
+            ],
+          } satisfies BoxNode,
+          { flexDirection: 'column', width: statW, padding: 16, gap: 4, alignItems: 'center',
+            children: [
+              { text: '0', font: `700 ${fontSize + 8}px Inter`, lineHeight: Math.round((fontSize + 8) * 1.2) } satisfies TextNode,
+              { text: 'DOM nodes', font: `${fontSize - 2}px Inter`, lineHeight: Math.round((fontSize - 2) * 1.4) } satisfies TextNode,
+            ],
+          } satisfies BoxNode,
+          { flexDirection: 'column', width: statW, padding: 16, gap: 4, alignItems: 'center',
+            children: [
+              { text: '60fps', font: `700 ${fontSize + 8}px Inter`, lineHeight: Math.round((fontSize + 8) * 1.2) } satisfies TextNode,
+              { text: 'Animation', font: `${fontSize - 2}px Inter`, lineHeight: Math.round((fontSize - 2) * 1.4) } satisfies TextNode,
+            ],
+          } satisfies BoxNode,
+        ],
+      } satisfies BoxNode,
+      // Footer
+      {
+        flexDirection: 'row', justifyContent: 'space-between',
+        children: [
+          { text: 'razroo.com/textura', font: `500 ${fontSize - 1}px Inter`, lineHeight: Math.round((fontSize - 1) * 1.4) } satisfies TextNode,
+          { text: '© 2025 Razroo', font: `${fontSize - 1}px Inter`, lineHeight: Math.round((fontSize - 1) * 1.4) } satisfies TextNode,
+        ],
+      } satisfies BoxNode,
+    ],
+  }
+}
+
+function renderPosterNode(
+  ctx: CanvasRenderingContext2D,
+  layout: ComputedLayout,
+  tree: BoxNode | TextNode,
+  ox: number,
+  oy: number,
+  isYoga: boolean,
+) {
+  const x = ox + layout.x
+  const y = oy + layout.y
+  const w = layout.width
+  const h = layout.height
+  const isTextNode = layout.text !== undefined
+
+  // Icon placeholder (36x36 boxes)
+  if (!isTextNode && layout.children.length === 0 && w >= 32 && w <= 40 && h >= 32 && h <= 40) {
+    ctx.fillStyle = '#e94560'
+    roundRect(ctx, x, y, w, h, 8)
+    ctx.fill()
+    ctx.fillStyle = '#fff'
+    roundRect(ctx, x + w / 2 - 5, y + h / 2 - 5, 10, 10, 2)
+    ctx.fill()
+    return
+  }
+
+  // Card / section backgrounds
+  if (!isTextNode && 'padding' in tree && layout.children.length > 0) {
+    const pad = tree.padding as number
+    if (pad === 20) {
+      // Feature card
+      ctx.fillStyle = '#fff'
+      roundRect(ctx, x, y, w, h, 10)
+      ctx.fill()
+      ctx.strokeStyle = '#e8e8ec'
+      ctx.lineWidth = 1
+      roundRect(ctx, x, y, w, h, 10)
+      ctx.stroke()
+    } else if (pad === 24) {
+      // Quote section
+      ctx.fillStyle = '#f8f5ff'
+      roundRect(ctx, x, y, w, h, 10)
+      ctx.fill()
+      ctx.fillStyle = '#e94560'
+      roundRect(ctx, x, y, 4, h, 2)
+      ctx.fill()
+    } else if (pad === 16) {
+      // Stats card
+      ctx.fillStyle = '#f5f5f7'
+      roundRect(ctx, x, y, w, h, 8)
+      ctx.fill()
+    }
+  }
+
+  // Text
+  if (isTextNode) {
+    const tn = tree as TextNode
+    const font = tn.font
+    const lineHeight = tn.lineHeight
+    const fontSizeMatch = font.match(/(\d+)px/)
+    const fSize = fontSizeMatch ? parseInt(fontSizeMatch[1]!) : 14
+    const isBold700 = font.includes('700')
+    const isBold600 = font.includes('600')
+    const isItalic = font.includes('italic')
+
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(x, y, w, h)
+    ctx.clip()
+
+    ctx.font = font
+    if (isBold700 && fSize > 24) ctx.fillStyle = '#e94560'      // big title
+    else if (isBold700 && fSize > 16) ctx.fillStyle = '#111'     // stat numbers
+    else if (isBold600) ctx.fillStyle = '#222'                    // card titles
+    else if (isItalic) ctx.fillStyle = '#444'                     // quote
+    else if (font.includes('300')) ctx.fillStyle = '#666'         // subtitle
+    else if (fSize <= 12) ctx.fillStyle = '#888'                  // small labels
+    else if (font.includes('500')) ctx.fillStyle = '#555'         // attribution/footer
+    else ctx.fillStyle = '#444'                                   // body
+
+    const text = layout.text!
+    const words = text.split(' ')
+    let line = ''
+    let ly = y + lineHeight * 0.76
+
+    for (const word of words) {
+      const test = line ? `${line} ${word}` : word
+      if (ctx.measureText(test).width > w && line) {
+        ctx.fillText(line, x, ly)
+        line = word
+        ly += lineHeight
+      } else {
+        line = test
+      }
+    }
+    if (line) ctx.fillText(line, x, ly)
+
+    ctx.restore()
+
+    if (isYoga && ly + lineHeight * 0.24 > y + h + 2) {
+      ctx.fillStyle = '#ef444440'
+      ctx.fillRect(x, y + h, w, ly + lineHeight * 0.24 - (y + h))
+    }
+    return
+  }
+
+  // Recurse
+  const children = ('children' in tree) ? (tree as BoxNode).children ?? [] : []
+  for (let i = 0; i < layout.children.length; i++) {
+    if (children[i]) {
+      renderPosterNode(ctx, layout.children[i]!, children[i]!, x, y, isYoga)
+    }
+  }
+}
+
+function renderEditor() {
+  const fontSize = parseInt(fontSlider.value)
+  const w = editorPosterWidth
+  const tree = buildEditorTree(w, fontSize)
+
+  const t0 = performance.now()
+  const texturaLayout = computeLayout(tree, { width: w })
+  const texturaTime = performance.now() - t0
+
+  const { layout: yogaLayout, time: yogaTime } = yogaLayoutTree(tree, w, fontSize)
+
+  const posterH = Math.max(texturaLayout.height, yogaLayout.height)
+  const canvasH = Math.min(posterH + 60, 900)
+
+  const ctxY = setupCanvas(canvasYoga, canvasH)
+  const ctxT = setupCanvas(canvasTextura, canvasH)
+  const panelW = canvasYoga.clientWidth
+
+  // Canvas backgrounds with dot grid
+  for (const ctx of [ctxY, ctxT]) {
+    ctx.fillStyle = '#1a1a1e'
+    ctx.fillRect(0, 0, panelW, canvasH)
+    ctx.fillStyle = '#252529'
+    for (let gx = 0; gx < panelW; gx += 16) {
+      for (let gy = 0; gy < canvasH; gy += 16) {
+        ctx.fillRect(gx, gy, 1, 1)
+      }
+    }
+  }
+
+  const offsetX = Math.max(16, (panelW - w) / 2)
+  const offsetY = 20
+
+  // Poster backgrounds with shadow
+  for (const [ctx, layout] of [[ctxY, yogaLayout], [ctxT, texturaLayout]] as const) {
+    ctx.fillStyle = 'rgba(0,0,0,0.2)'
+    roundRect(ctx, offsetX + 3, offsetY + 3, w, layout.height, 6)
+    ctx.fill()
+    ctx.fillStyle = '#fafafa'
+    roundRect(ctx, offsetX, offsetY, w, layout.height, 6)
+    ctx.fill()
+    ctx.strokeStyle = '#ddd'
+    ctx.lineWidth = 1
+    roundRect(ctx, offsetX, offsetY, w, layout.height, 6)
+    ctx.stroke()
+  }
+
+  // Render content
+  renderPosterNode(ctxY, yogaLayout, tree, offsetX, offsetY, true)
+  renderPosterNode(ctxT, texturaLayout, tree, offsetX, offsetY, false)
+
+  // Resize handle on Textura side (right edge)
+  const handleX = offsetX + w
+  const handleH = texturaLayout.height
+  ctxT.fillStyle = '#3b82f6'
+  roundRect(ctxT, handleX - 3, offsetY + handleH / 2 - 24, 6, 48, 3)
+  ctxT.fill()
+  ctxT.fillStyle = '#fff'
+  for (let dy = -8; dy <= 8; dy += 8) {
+    ctxT.beginPath()
+    ctxT.arc(handleX, offsetY + handleH / 2 + dy, 1.5, 0, Math.PI * 2)
+    ctxT.fill()
+  }
+
+  // Dimmer handle on Yoga side
+  ctxY.fillStyle = '#3b82f680'
+  roundRect(ctxY, offsetX + w - 3, offsetY + yogaLayout.height / 2 - 24, 6, 48, 3)
+  ctxY.fill()
+
+  // Width indicator
+  ctxT.save()
+  ctxT.font = '500 11px Inter'
+  const wText = `${w}px`
+  const wtw = ctxT.measureText(wText).width
+  ctxT.fillStyle = 'rgba(59,130,246,0.9)'
+  roundRect(ctxT, offsetX + w / 2 - wtw / 2 - 6, offsetY - 18, wtw + 12, 16, 3)
+  ctxT.fill()
+  ctxT.fillStyle = '#fff'
+  ctxT.fillText(wText, offsetX + w / 2 - wtw / 2, offsetY - 6)
+  ctxT.restore()
+
+  // Frame time overlay
+  ctxT.save()
+  ctxT.font = '600 11px Inter'
+  const ftText = `Layout: ${texturaTime.toFixed(2)}ms · 0 DOM nodes`
+  const ftw = ctxT.measureText(ftText).width
+  ctxT.fillStyle = 'rgba(0,0,0,0.7)'
+  roundRect(ctxT, panelW - ftw - 20, 8, ftw + 12, 20, 4)
+  ctxT.fill()
+  ctxT.fillStyle = '#4ade80'
+  ctxT.fillText(ftText, panelW - ftw - 14, 22)
+  ctxT.restore()
+
+  // Stats
+  const overlaps = countOverlaps(yogaLayout, tree, ctxY)
+  const heightDiff = Math.abs(texturaLayout.height - yogaLayout.height)
+
+  document.getElementById('yoga-time')!.textContent = `Layout: ${yogaTime.toFixed(2)}ms (wrong)`
+  document.getElementById('yoga-nodes')!.textContent = `Height: ${Math.round(yogaLayout.height)}px`
+  document.getElementById('textura-time')!.textContent = `Layout: ${texturaTime.toFixed(2)}ms (accurate)`
+  document.getElementById('textura-nodes')!.textContent = `Height: ${Math.round(texturaLayout.height)}px`
+
+  document.getElementById('stat-overlap')!.textContent = `${overlaps}`
+  document.getElementById('stat-height-diff')!.textContent = `${Math.round(heightDiff)}px`
+  document.getElementById('stat-resize-time')!.textContent = `${texturaTime.toFixed(2)}ms`
+  document.getElementById('stat-dom-time')!.textContent = `0`
+
+  document.getElementById('insight-text')!.innerHTML = insights['editor']
+}
+
+// Editor drag interaction
+function editorGetHandleX(canvas: HTMLCanvasElement): number {
+  const panelW = canvas.clientWidth
+  return Math.max(16, (panelW - editorPosterWidth) / 2) + editorPosterWidth
+}
+
+canvasTextura.addEventListener('mousedown', (e) => {
+  if (scenarioSelect.value !== 'editor') return
+  const rect = canvasTextura.getBoundingClientRect()
+  const mx = e.clientX - rect.left
+  if (Math.abs(mx - editorGetHandleX(canvasTextura)) < 12) {
+    editorDragging = true
+    e.preventDefault()
+  }
+})
+
+document.addEventListener('mousemove', (e) => {
+  if (scenarioSelect.value !== 'editor') return
+  if (editorDragging) {
+    const rect = canvasTextura.getBoundingClientRect()
+    const mx = e.clientX - rect.left
+    const panelW = canvasTextura.clientWidth
+    const offsetX = Math.max(16, (panelW - editorPosterWidth) / 2)
+    editorPosterWidth = Math.max(280, Math.min(860, Math.round(mx - offsetX)))
+    widthSlider.value = String(Math.min(parseInt(widthSlider.max), editorPosterWidth))
+    widthLabel.textContent = `${editorPosterWidth}px`
+    renderEditor()
+    e.preventDefault()
+  } else {
+    const rect = canvasTextura.getBoundingClientRect()
+    const mx = e.clientX - rect.left
+    canvasTextura.style.cursor = Math.abs(mx - editorGetHandleX(canvasTextura)) < 12 ? 'col-resize' : 'default'
+  }
+})
+
+document.addEventListener('mouseup', () => {
+  if (editorDragging) {
+    editorDragging = false
+    canvasTextura.style.cursor = 'default'
+  }
+})
+
 // ── Morph animation ───────────────────────────────────────────
 
 let morphRafId: number | null = null
@@ -1158,6 +1535,11 @@ function onScenarioChange() {
     widthSlider.disabled = false
     widthSlider.style.opacity = '1'
     startVScroll()
+  } else if (scenario === 'editor') {
+    widthSlider.disabled = false
+    widthSlider.style.opacity = '1'
+    editorPosterWidth = parseInt(widthSlider.value)
+    renderEditor()
   } else {
     widthSlider.disabled = false
     widthSlider.style.opacity = '1'
@@ -1175,6 +1557,9 @@ widthSlider.addEventListener('input', () => {
     vscrollState = computeVScrollHeights(w, fs)
     vscrollTop = 0
     renderVScroll()
+  } else if (scenarioSelect.value === 'editor') {
+    editorPosterWidth = parseInt(widthSlider.value)
+    renderEditor()
   } else {
     render()
   }
@@ -1191,6 +1576,7 @@ fontSlider.addEventListener('input', () => {
     renderVScroll()
     return
   }
+  if (scenarioSelect.value === 'editor') { renderEditor(); return }
   render()
 })
 
@@ -1199,6 +1585,7 @@ scenarioSelect.addEventListener('change', onScenarioChange)
 window.addEventListener('resize', () => {
   if (scenarioSelect.value === 'morph') return
   if (scenarioSelect.value === 'vscroll') { renderVScroll(); return }
+  if (scenarioSelect.value === 'editor') { renderEditor(); return }
   render()
 })
 
