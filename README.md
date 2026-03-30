@@ -136,6 +136,69 @@ Clear Pretext's internal measurement caches.
 
 Release Yoga resources. Mostly useful for tests.
 
+## MCP Server — AI Layout Analysis
+
+The Textura MCP server gives AI coding agents (Claude Code, Codex) layout vision — compute geometry, detect issues, validate responsive breakpoints, and auto-fix problems. Works with any framework.
+
+### Setup
+
+Add to your project's `.mcp.json` (or `~/.claude/settings.json` for global):
+
+```json
+{
+  "mcpServers": {
+    "textura": {
+      "command": "npx",
+      "args": ["-y", "@razroo/textura-mcp"]
+    }
+  }
+}
+```
+
+For Codex, use the same config in your Codex MCP settings.
+
+That's it — restart your agent and 4 new tools are available.
+
+### Tools
+
+| Tool | What it does |
+|---|---|
+| `compute_layout` | Compute exact pixel positions and sizes for a layout tree |
+| `analyze_layout` | Find text overflow, element overlap, small touch targets, cramped spacing |
+| `validate_responsive` | Check a layout at mobile/tablet/desktop/wide in one call |
+| `fix_layout` | Auto-fix detected issues, return corrected tree + change descriptions |
+
+### How it works with your code
+
+You ask the agent to check your layout. The agent reads your component code (React, Vue, Svelte, Tailwind, etc.), translates the layout structure into a Textura tree, and calls the MCP:
+
+```jsx
+// Your component:
+<div className="flex flex-col gap-4 p-6">
+  <h1 className="text-2xl font-bold">Dashboard</h1>
+  <div className="flex gap-4">
+    <Card>Revenue: $12.4M</Card>
+    <Card>Users: 847K</Card>
+  </div>
+</div>
+```
+
+```json
+// Agent translates to Textura tree:
+{
+  "flexDirection": "column", "gap": 16, "padding": 24,
+  "children": [
+    { "text": "Dashboard", "font": "700 24px Inter", "lineHeight": 32 },
+    { "flexDirection": "row", "gap": 16, "children": [
+      { "padding": 16, "children": [{ "text": "Revenue: $12.4M", "font": "16px Inter", "lineHeight": 24 }] },
+      { "padding": 16, "children": [{ "text": "Users: 847K", "font": "16px Inter", "lineHeight": 24 }] }
+    ]}
+  ]
+}
+```
+
+The MCP returns exact geometry and issues. The agent applies fixes back to your actual code. No browser needed.
+
 ## How it works
 
 1. You describe a UI tree using plain objects with CSS-like flex properties
