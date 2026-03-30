@@ -4,9 +4,18 @@
   "description": "MCP server for Textura — AI-powered layout analysis, validation, and auto-fix",
   "license": "MIT",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/razroo/textura",
+    "directory": "mcp"
+  },
   "bin": {
     "textura-mcp": "./dist/index.js"
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "node --loader ts-node/esm src/index.ts"
@@ -14,7 +23,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
     "@napi-rs/canvas": "^0.1.65",
-    "textura": "file:.."
+    "textura": "^0.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

@@ -22,27 +22,14 @@ Automatically fix detected issues: expand touch targets to 44px, increase crampe
 
 ### Claude Code
 
-Add to your project's `.mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "textura": {
-      "command": "node",
-      "args": ["./mcp/dist/index.js"]
-    }
-  }
-}
-```
-
-Or install globally and use in `~/.claude/settings.json`:
+Add to your project's `.mcp.json` (or `~/.claude/settings.json` for global):
 
 ```json
 {
   "mcpServers": {
     "textura": {
       "command": "npx",
-      "args": ["@textura/mcp"]
+      "args": ["-y", "@textura/mcp"]
     }
   }
 }
@@ -50,14 +37,12 @@ Or install globally and use in `~/.claude/settings.json`:
 
 ### Codex (OpenAI)
 
-Codex supports MCP servers via the same stdio protocol. Add to your Codex MCP configuration:
-
 ```json
 {
   "mcpServers": {
     "textura": {
-      "command": "node",
-      "args": ["./mcp/dist/index.js"]
+      "command": "npx",
+      "args": ["-y", "@textura/mcp"]
     }
   }
 }
