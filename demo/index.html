@@ -836,6 +836,23 @@ npm install textura
 
 <span class="kw">const</span> layout = <span class="fn">computeLayout</span>(tree, { width: <span class="type">400</span> })
 <span class="cmt">// → { x, y, width, height, children: [{ x, y, width, height, text }, ...] }</span></pre>
+
+      <h3 style="margin-top:24px">MCP Server — AI Layout Analysis</h3>
+      <p style="font-size:14px;color:#a1a1aa;line-height:1.6;margin-bottom:12px">Give your AI coding agent layout vision. Detect text overflow, element overlap, small touch targets, and auto-fix issues — works with any framework.</p>
+      <pre><span class="cmt"># Claude Code — one command:</span>
+claude mcp add textura npx @razroo/textura-mcp
+
+<span class="cmt"># Or add to .mcp.json / Codex / Cursor / VS Code:</span>
+{
+  <span class="str">"mcpServers"</span>: {
+    <span class="str">"textura"</span>: {
+      <span class="str">"command"</span>: <span class="str">"npx"</span>,
+      <span class="str">"args"</span>: [<span class="str">"-y"</span>, <span class="str">"@razroo/textura-mcp"</span>]
+    }
+  }
+}</pre>
+      <p style="font-size:13px;color:#71717a;margin-top:8px">Tools: <code style="color:#e0e0e0">compute_layout</code> · <code style="color:#e0e0e0">analyze_layout</code> · <code style="color:#e0e0e0">validate_responsive</code> · <code style="color:#e0e0e0">fix_layout</code></p>
+
       <div class="get-started-footer">
         <a href="https://github.com/razroo/textura" target="_blank" rel="noopener">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
@@ -844,6 +861,14 @@ npm install textura
         <a href="https://www.npmjs.com/package/textura" target="_blank" rel="noopener">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M1.763 0C.786 0 0 .786 0 1.763v20.474C0 23.214.786 24 1.763 24h20.474c.977 0 1.763-.786 1.763-1.763V1.763C24 .786 23.214 0 22.237 0zM5.13 5.323l13.837.019-.009 13.836h-3.464l.01-10.382h-3.456L12.04 19.17H5.113z"/></svg>
           View on npm
+        </a>
+        <a href="https://www.npmjs.com/package/@razroo/textura-mcp" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M21.71 20.29l-5.4-5.4A7.92 7.92 0 0018 10a8 8 0 10-8 8 7.92 7.92 0 004.89-1.69l5.4 5.4a1 1 0 001.42 0 1 1 0 000-1.42zM4 10a6 6 0 116 6 6 6 0 01-6-6z"/></svg>
+          MCP on npm
+        </a>
+        <a href="https://github.com/razroo/textura#mcp-server--ai-layout-analysis" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2zm-7 14H7v-2h5v2zm5-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+          Full setup docs
         </a>
       </div>
     </div>
