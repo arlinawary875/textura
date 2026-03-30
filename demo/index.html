@@ -370,6 +370,46 @@
       transition: width 0.05s linear;
     }
 
+    .synth-bar {
+      max-width: 1400px;
+      margin: 0 auto 24px;
+      padding: 0 24px;
+      display: none;
+    }
+    .synth-bar.active { display: block; }
+    .synth-inner {
+      background: linear-gradient(135deg, #0f1a2e 0%, #18181b 100%);
+      border: 1px solid #27272a;
+      border-radius: 12px;
+      padding: 20px 28px;
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      flex-wrap: wrap;
+    }
+    .synth-toggle {
+      display: flex;
+      background: #27272a;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .synth-toggle button {
+      background: none;
+      border: none;
+      color: #71717a;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: Inter, sans-serif;
+      padding: 6px 14px;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .synth-toggle button.active {
+      background: #e94560;
+      color: #fff;
+    }
+
     .topbar {
       display: flex;
       justify-content: space-between;
@@ -506,6 +546,7 @@
         <option value="vscroll">Virtual Scroll (10k items)</option>
         <option value="editor">Design Editor (drag to resize)</option>
         <option value="aistream">AI Streaming Report</option>
+        <option value="synth">Synthetic UI Training Data</option>
       </select>
     </div>
     <div class="control-group">
@@ -541,6 +582,32 @@
       <div class="panel-footer">
         <span id="textura-time">—</span>
         <span id="textura-nodes">—</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="synth-bar" id="synth-bar">
+    <div class="synth-inner">
+      <button class="aistream-btn" id="synth-btn">Generate</button>
+      <div class="synth-toggle">
+        <button class="active" id="synth-mode-visual">Visual</button>
+        <button id="synth-mode-bbox">Annotations</button>
+      </div>
+      <div class="vscroll-stat">
+        <div class="vscroll-stat-value good" id="synth-count">0</div>
+        <div class="vscroll-stat-label">UIs generated</div>
+      </div>
+      <div class="vscroll-stat">
+        <div class="vscroll-stat-value good" id="synth-rate">—</div>
+        <div class="vscroll-stat-label">Layouts / sec</div>
+      </div>
+      <div class="vscroll-stat">
+        <div class="vscroll-stat-value good" id="synth-time">—</div>
+        <div class="vscroll-stat-label">Avg layout time</div>
+      </div>
+      <div class="vscroll-stat">
+        <div class="vscroll-stat-value warn" id="synth-nodes">—</div>
+        <div class="vscroll-stat-label">Nodes per UI</div>
       </div>
     </div>
   </div>

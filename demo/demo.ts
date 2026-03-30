@@ -280,8 +280,8 @@ const scrollMessages: Message[] = Array.from({ length: VSCROLL_ITEM_COUNT }, (_,
   time: `${9 + Math.floor((i * 3) % 12)}:${String((i * 7) % 60).padStart(2, '0')}`,
 }))
 
-type ScenarioKey = 'chat' | 'cards' | 'i18n' | 'article' | 'stress' | 'morph' | 'vscroll' | 'editor' | 'aistream'
-const builders: Record<Exclude<ScenarioKey, 'vscroll' | 'editor' | 'aistream'>, (w: number, fs: number) => BoxNode> = {
+type ScenarioKey = 'chat' | 'cards' | 'i18n' | 'article' | 'stress' | 'morph' | 'vscroll' | 'editor' | 'aistream' | 'synth'
+const builders: Record<Exclude<ScenarioKey, 'vscroll' | 'editor' | 'aistream' | 'synth'>, (w: number, fs: number) => BoxNode> = {
   chat: buildChatTree, cards: buildCardsTree, i18n: buildI18nTree,
   article: buildArticleTree, stress: buildStressTree, morph: buildMorphTree,
 }
@@ -423,7 +423,7 @@ function renderLayout(
   const isAvatar = !isText && layout.children.length === 0 && w >= 20 && w <= 36 && h >= 20 && h <= 36
 
   // Card background
-  if (hasCardStyle && (scenario === 'chat' || scenario === 'i18n' || scenario === 'stress' || scenario === 'morph' || scenario === 'aistream')) {
+  if (hasCardStyle && (scenario === 'chat' || scenario === 'i18n' || scenario === 'stress' || scenario === 'morph' || scenario === 'aistream' || scenario === 'synth')) {
     ctx.fillStyle = palette.card
     roundRect(ctx, x, y, w, h, 6)
     ctx.fill()
@@ -436,7 +436,8 @@ function renderLayout(
   // Card bg for "cards" / "morph" / "aistream" scenario
   if ((scenario === 'cards' && 'padding' in tree && tree.padding === 16 && !isText) ||
       (scenario === 'morph' && 'padding' in tree && (tree.padding === 14 || tree.padding === 12) && !isText && layout.children.length > 0 && layout.children.length <= 3) ||
-      (scenario === 'aistream' && 'padding' in tree && (tree.padding === 14 || tree.padding === 16) && !isText && layout.children.length > 0 && layout.children.length <= 3)) {
+      (scenario === 'aistream' && 'padding' in tree && (tree.padding === 14 || tree.padding === 16) && !isText && layout.children.length > 0 && layout.children.length <= 3) ||
+      (scenario === 'synth' && 'padding' in tree && (tree.padding === 12 || tree.padding === 16) && !isText && layout.children.length > 0 && layout.children.length <= 3)) {
     ctx.fillStyle = palette.card
     roundRect(ctx, x, y, w, h, 8)
     ctx.fill()
@@ -601,6 +602,9 @@ const insights: Record<ScenarioKey, string> = {
   editor: `<p><strong>This is the technology behind the next generation of design tools.</strong> Every element on this poster — titles, body text, feature cards, statistics, pull quotes — is laid out using Textura's flexbox engine with pixel-perfect text measurement. The entire layout computation happens in under 1ms. Zero DOM nodes are used.</p>
 <p>Drag the blue resize handle on the right edge of the poster (Textura side). Watch cards reflow from 3 columns to 2 to 1. Watch text re-wrap across every container. Watch heights auto-adjust and siblings reposition. This is what Canva, Figma, and every canvas-based design editor has struggled with: <strong>accurate text-aware auto-layout without the DOM</strong>. With Textura, it's a single function call.</p>`,
 
+  synth: `<p><strong>Training vision-language models and UI agents requires millions of UI screenshots with ground-truth bounding boxes.</strong> Currently this means spinning up headless browsers — slow (~2 layouts/sec), expensive, and hard to scale. With Textura, you generate layouts at hundreds per second on a single thread, with pixel-perfect annotations, no browser needed.</p>
+<p>Left canvas shows the <strong>visual render</strong> — what the model sees during training. Right canvas shows <strong>bounding box annotations</strong> — the ground truth metadata (element type, coordinates, dimensions) overlaid on each node. Toggle the view mode to see both perspectives. Each UI is randomly composed with varied layouts, text lengths, and card counts. ${yogaLink} alone produces wrong bounding boxes because text heights are estimated. ${pretextLink} alone can't compute element positions. Only Textura gives both — accurate layout + accurate text — at scale.</p>`,
+
   aistream: `<p><strong>The AI layout problem.</strong> Every AI product — ChatGPT, Notion AI, Cursor — streams tokens into the UI. The layout needs to update on every token: text grows, paragraphs expand, cards appear, sections push content down. With DOM-based layout, each token triggers a synchronous reflow. For complex documents with cards, stats, and mixed content, this becomes visibly janky.</p>
 <p>Textura's cached hot path makes per-token relayout nearly free. After the initial <code>prepare()</code>, every subsequent layout is pure arithmetic over cached segment widths. Watch the left side: ${yogaLink}'s height estimates jump as text grows, causing content below to shift unpredictably. The right side stays perfectly stable — every token produces a correct layout. This enables AI products to stream into <strong>rich, designed layouts</strong> (not just plain text) with zero layout shift.</p>`,
 
@@ -663,7 +667,7 @@ function measureWithDOM(tree: BoxNode | TextNode, containerWidth: number, fontSi
 
 function render() {
   const scenario = scenarioSelect.value as ScenarioKey
-  if (scenario === 'vscroll' || scenario === 'editor' || scenario === 'aistream') return
+  if (scenario === 'vscroll' || scenario === 'editor' || scenario === 'aistream' || scenario === 'synth') return
   const containerWidth = parseInt(widthSlider.value)
   const fontSize = parseInt(fontSlider.value)
 
@@ -1386,6 +1390,335 @@ document.addEventListener('mouseup', () => {
   }
 })
 
+// ── Synthetic UI Training Data ─────────────────────────────────
+
+const synthTitles = [
+  'Dashboard Overview', 'User Analytics', 'Revenue Report', 'Team Activity',
+  'System Status', 'Project Tracker', 'Sales Pipeline', 'Support Tickets',
+  'Inventory Manager', 'Campaign Results', 'API Metrics', 'Deployment Log',
+]
+
+const synthBodies = [
+  'Real-time monitoring of key performance indicators across all services.',
+  'Weekly active users increased by 23% compared to the previous quarter.',
+  'Processing 4.2M requests per day with 99.97% uptime across all regions.',
+  'Automated deployment pipeline completed 847 successful releases this month.',
+  'Customer satisfaction scores improved to 4.8/5.0 following the latest update.',
+  'Machine learning pipeline processing 12TB of training data daily.',
+  'Cross-functional collaboration improved sprint velocity by 34% this quarter.',
+  'Infrastructure costs reduced 28% after migrating to edge computing.',
+  'Mobile engagement up 45% after launching the redesigned notification system.',
+  'Security audit passed with zero critical findings for the third consecutive quarter.',
+]
+
+const synthStats = ['$12.4M', '847K', '94.2%', '72', '4.8/5', '99.97%', '23%', '1.2M', '340ms', '28%']
+const synthLabels = ['Revenue', 'Users', 'Retention', 'NPS', 'Rating', 'Uptime', 'Growth', 'Events', 'Latency', 'Savings']
+
+let synthIntervalId: ReturnType<typeof setInterval> | null = null
+let synthCount = 0
+let synthTotalTime = 0
+let synthShowBbox = false
+let synthLastTree: BoxNode | null = null
+let synthLastTexturaLayout: ComputedLayout | null = null
+let synthLastYogaLayout: ComputedLayout | null = null
+let synthLastNodeCount = 0
+
+// Deterministic pseudo-random from seed
+function mulberry32(seed: number): () => number {
+  let s = seed | 0
+  return () => {
+    s = (s + 0x6D2B79F5) | 0
+    let t = Math.imul(s ^ (s >>> 15), 1 | s)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+function buildSynthTree(w: number, fontSize: number, seed: number): BoxNode {
+  const rand = mulberry32(seed)
+  const pick = <T>(arr: T[]): T => arr[Math.floor(rand() * arr.length)]!
+
+  const innerPad = Math.round(16 + rand() * 16)
+  const innerW = w - innerPad * 2
+
+  // Decide structure: 2-5 sections
+  const sectionCount = 2 + Math.floor(rand() * 4)
+  const children: (BoxNode | TextNode)[] = []
+
+  // Always start with a title
+  children.push({
+    text: pick(synthTitles),
+    font: `700 ${fontSize + 6 + Math.floor(rand() * 8)}px Inter`,
+    lineHeight: Math.round((fontSize + 10) * 1.2),
+  } satisfies TextNode)
+
+  // Optional subtitle
+  if (rand() > 0.3) {
+    children.push({
+      text: pick(synthBodies),
+      font: `${fontSize}px Inter`,
+      lineHeight: Math.round(fontSize * 1.5),
+    } satisfies TextNode)
+  }
+
+  for (let s = 0; s < sectionCount; s++) {
+    const sectionType = rand()
+
+    if (sectionType < 0.35) {
+      // Stats row
+      const statCount = 2 + Math.floor(rand() * 3)
+      const cols = w >= 500 ? Math.min(statCount, 4) : 2
+      const statW = (innerW - 10 * (cols - 1)) / cols
+      const statChildren: BoxNode[] = []
+      for (let i = 0; i < statCount; i++) {
+        const si = (seed * 7 + s * 3 + i) % synthStats.length
+        statChildren.push({
+          flexDirection: 'column', width: statW, padding: 12, gap: 4, alignItems: 'center',
+          children: [
+            { text: synthStats[si]!, font: `700 ${fontSize + 6}px Inter`, lineHeight: Math.round((fontSize + 6) * 1.2) } satisfies TextNode,
+            { text: synthLabels[si]!, font: `${fontSize - 2}px Inter`, lineHeight: Math.round((fontSize - 2) * 1.4) } satisfies TextNode,
+          ],
+        })
+      }
+      children.push({ flexDirection: 'row', flexWrap: 'wrap', gap: 10, children: statChildren } satisfies BoxNode)
+    } else if (sectionType < 0.7) {
+      // Card grid
+      const cardCount = 2 + Math.floor(rand() * 3)
+      const cols = w >= 550 ? Math.min(cardCount, 3) : w >= 380 ? 2 : 1
+      const cardW = (innerW - 12 * (cols - 1)) / cols
+      const cardChildren: BoxNode[] = []
+      for (let i = 0; i < cardCount; i++) {
+        const ti = (seed * 11 + s * 5 + i) % synthTitles.length
+        const bi = (seed * 13 + s * 7 + i) % synthBodies.length
+        const cc: (BoxNode | TextNode)[] = [
+          { text: synthTitles[ti]!, font: `600 ${fontSize}px Inter`, lineHeight: Math.round(fontSize * 1.3) } satisfies TextNode,
+          { text: synthBodies[bi]!, font: `${fontSize - 1}px Inter`, lineHeight: Math.round((fontSize - 1) * 1.55) } satisfies TextNode,
+        ]
+        // Some cards get an icon placeholder
+        if (rand() > 0.5) cc.unshift({ width: 32, height: 32 } satisfies BoxNode)
+        cardChildren.push({ flexDirection: 'column', width: cardW, padding: 16, gap: 8, children: cc })
+      }
+      children.push({ flexDirection: 'row', flexWrap: 'wrap', gap: 12, children: cardChildren } satisfies BoxNode)
+    } else {
+      // Paragraph
+      const bi = (seed * 17 + s * 3) % synthBodies.length
+      children.push({
+        text: synthBodies[bi]!,
+        font: `${fontSize}px Inter`,
+        lineHeight: Math.round(fontSize * 1.6),
+        marginBottom: 4,
+      } satisfies TextNode)
+    }
+  }
+
+  return { width: w, flexDirection: 'column', padding: innerPad, gap: 12, children }
+}
+
+function countLayoutNodes(layout: ComputedLayout): number {
+  let n = 1
+  for (const c of layout.children) n += countLayoutNodes(c)
+  return n
+}
+
+function renderSynth() {
+  if (!synthLastTree || !synthLastTexturaLayout || !synthLastYogaLayout) return
+
+  const tree = synthLastTree
+  const texturaLayout = synthLastTexturaLayout
+  const yogaLayout = synthLastYogaLayout
+
+  const maxHeight = Math.max(texturaLayout.height, yogaLayout.height, 200)
+  const canvasH = Math.min(maxHeight + 20, 800)
+  const containerWidth = parseInt(widthSlider.value)
+
+  const ctxL = setupCanvas(canvasYoga, canvasH)
+  const ctxR = setupCanvas(canvasTextura, canvasH)
+  const panelW = canvasYoga.clientWidth
+  const offsetX = Math.max(0, (panelW - containerWidth) / 2)
+
+  ctxL.fillStyle = palette.bg
+  ctxL.fillRect(0, 0, panelW, canvasH)
+  ctxR.fillStyle = palette.bg
+  ctxR.fillRect(0, 0, panelW, canvasH)
+
+  if (synthShowBbox) {
+    // Left: Yoga with bounding boxes (inaccurate)
+    renderLayout(ctxL, yogaLayout, tree, offsetX, 10, 'synth', true)
+    drawBboxOverlay(ctxL, yogaLayout, tree, offsetX, 10, true)
+    // Right: Textura with bounding boxes (accurate)
+    renderLayout(ctxR, texturaLayout, tree, offsetX, 10, 'synth', false)
+    drawBboxOverlay(ctxR, texturaLayout, tree, offsetX, 10, false)
+  } else {
+    // Left: Visual render (Yoga — broken)
+    renderLayout(ctxL, yogaLayout, tree, offsetX, 10, 'synth', true)
+    // Right: Visual render (Textura — accurate)
+    renderLayout(ctxR, texturaLayout, tree, offsetX, 10, 'synth', false)
+  }
+
+  // Overlay labels
+  ctxL.save()
+  ctxL.font = '600 11px Inter'
+  const lLabel = synthShowBbox ? 'Yoga Annotations (inaccurate)' : 'Yoga Visual (estimated)'
+  const llw = ctxL.measureText(lLabel).width
+  ctxL.fillStyle = 'rgba(0,0,0,0.7)'
+  roundRect(ctxL, panelW - llw - 20, 8, llw + 12, 18, 4)
+  ctxL.fill()
+  ctxL.fillStyle = '#fb923c'
+  ctxL.fillText(lLabel, panelW - llw - 14, 22)
+  ctxL.restore()
+
+  ctxR.save()
+  ctxR.font = '600 11px Inter'
+  const rLabel = synthShowBbox ? 'Textura Annotations (accurate)' : 'Textura Visual (accurate)'
+  const rlw = ctxR.measureText(rLabel).width
+  ctxR.fillStyle = 'rgba(0,0,0,0.7)'
+  roundRect(ctxR, panelW - rlw - 20, 8, rlw + 12, 18, 4)
+  ctxR.fill()
+  ctxR.fillStyle = '#4ade80'
+  ctxR.fillText(rLabel, panelW - rlw - 14, 22)
+  ctxR.restore()
+
+  // Stats
+  const overlaps = countOverlaps(yogaLayout, tree, ctxL)
+  const heightDiff = Math.abs(texturaLayout.height - yogaLayout.height)
+  const avgTime = synthCount > 0 ? synthTotalTime / synthCount : 0
+
+  document.getElementById('yoga-time')!.textContent = `Height: ${Math.round(yogaLayout.height)}px (wrong)`
+  document.getElementById('yoga-nodes')!.textContent = `${overlaps} overlaps`
+  document.getElementById('textura-time')!.textContent = `Height: ${Math.round(texturaLayout.height)}px (accurate)`
+  document.getElementById('textura-nodes')!.textContent = `${synthLastNodeCount} nodes`
+
+  document.getElementById('stat-overlap')!.textContent = `${overlaps}`
+  document.getElementById('stat-height-diff')!.textContent = `${Math.round(heightDiff)}px`
+  document.getElementById('stat-resize-time')!.textContent = `${avgTime.toFixed(2)}ms`
+  document.getElementById('stat-dom-time')!.textContent = `${synthCount}`
+
+  document.getElementById('synth-count')!.textContent = `${synthCount}`
+  document.getElementById('synth-time')!.textContent = `${avgTime.toFixed(2)}ms`
+  document.getElementById('synth-nodes')!.textContent = `${synthLastNodeCount}`
+
+  document.getElementById('insight-text')!.innerHTML = insights['synth']
+}
+
+const bboxColors = ['#3b82f680', '#ef444480', '#22c55e80', '#f59e0b80', '#8b5cf680', '#ec489980', '#06b6d480', '#84cc1680']
+
+function drawBboxOverlay(ctx: CanvasRenderingContext2D, layout: ComputedLayout, tree: BoxNode | TextNode, ox: number, oy: number, _isYoga: boolean) {
+  let colorIdx = 0
+
+  function drawNode(l: ComputedLayout, t: BoxNode | TextNode, px: number, py: number, depth: number) {
+    const x = px + l.x
+    const y = py + l.y
+    const w = l.width
+    const h = l.height
+    const isTextNode = l.text !== undefined
+
+    const color = bboxColors[colorIdx % bboxColors.length]!
+    colorIdx++
+
+    // Draw bounding box
+    ctx.strokeStyle = color
+    ctx.lineWidth = 1.5
+    ctx.setLineDash(isTextNode ? [] : [4, 2])
+    ctx.strokeRect(x, y, w, h)
+    ctx.setLineDash([])
+
+    // Label
+    const label = isTextNode ? 'text' : l.children.length === 0 ? 'icon' : `box[${l.children.length}]`
+    const coords = `${Math.round(x - ox)},${Math.round(y - oy)} ${Math.round(w)}x${Math.round(h)}`
+    ctx.font = '500 9px Inter'
+    const labelText = `${label} ${coords}`
+    const tw = ctx.measureText(labelText).width
+
+    if (depth <= 2 || isTextNode) {
+      ctx.fillStyle = color.replace('80', 'cc')
+      roundRect(ctx, x, y - 12, tw + 6, 12, 2)
+      ctx.fill()
+      ctx.fillStyle = '#fff'
+      ctx.fillText(labelText, x + 3, y - 3)
+    }
+
+    // Recurse
+    if (!isTextNode) {
+      const children = ('children' in t) ? (t as BoxNode).children ?? [] : []
+      for (let i = 0; i < l.children.length; i++) {
+        if (children[i]) drawNode(l.children[i]!, children[i]!, x, y, depth + 1)
+      }
+    }
+  }
+
+  drawNode(layout, tree, ox, oy, 0)
+}
+
+function generateOneSynth() {
+  const containerWidth = parseInt(widthSlider.value)
+  const fontSize = parseInt(fontSlider.value)
+  const seed = synthCount + Date.now()
+
+  const tree = buildSynthTree(containerWidth, fontSize, seed)
+  synthLastTree = tree
+
+  const t0 = performance.now()
+  synthLastTexturaLayout = computeLayout(tree, { width: containerWidth })
+  const layoutTime = performance.now() - t0
+
+  const { layout: yogaLayout } = yogaLayoutTree(tree, containerWidth, fontSize)
+  synthLastYogaLayout = yogaLayout
+
+  synthLastNodeCount = countLayoutNodes(synthLastTexturaLayout)
+  synthCount++
+  synthTotalTime += layoutTime
+}
+
+function startSynth() {
+  document.getElementById('synth-bar')!.classList.add('active')
+  const btn = document.getElementById('synth-btn')!
+
+  if (synthIntervalId !== null) {
+    stopSynth()
+    return
+  }
+
+  synthCount = 0
+  synthTotalTime = 0
+
+  btn.textContent = 'Stop'
+  btn.classList.add('running')
+
+  // Generate first one immediately
+  generateOneSynth()
+  renderSynth()
+
+  // Measure throughput: generate as many as possible in 1 second, then show rate
+  let rateCount = 0
+  const rateStart = performance.now()
+  const containerWidth = parseInt(widthSlider.value)
+  const fontSize = parseInt(fontSlider.value)
+  while (performance.now() - rateStart < 200) {
+    const tree = buildSynthTree(containerWidth, fontSize, rateCount + Date.now())
+    computeLayout(tree, { width: containerWidth })
+    rateCount++
+  }
+  const rateElapsed = performance.now() - rateStart
+  const layoutsPerSec = Math.round(rateCount / (rateElapsed / 1000))
+  document.getElementById('synth-rate')!.textContent = `~${layoutsPerSec}`
+
+  // Visual generation at 2/sec for dramatic effect
+  synthIntervalId = setInterval(() => {
+    generateOneSynth()
+    renderSynth()
+  }, 500)
+}
+
+function stopSynth() {
+  if (synthIntervalId !== null) {
+    clearInterval(synthIntervalId)
+    synthIntervalId = null
+  }
+  const btn = document.getElementById('synth-btn')!
+  btn.textContent = 'Generate'
+  btn.classList.remove('running')
+}
+
 // ── AI Streaming ──────────────────────────────────────────────
 
 // The full AI-generated report — streamed token by token
@@ -1837,7 +2170,7 @@ function drawFpsOverlay(ctx: CanvasRenderingContext2D, panelW: number, frameTime
 
 // ── Routing ───────────────────────────────────────────────────
 
-const validScenarios = new Set<ScenarioKey>(['chat', 'cards', 'i18n', 'article', 'stress', 'morph', 'vscroll', 'editor', 'aistream'])
+const validScenarios = new Set<ScenarioKey>(['chat', 'cards', 'i18n', 'article', 'stress', 'morph', 'vscroll', 'editor', 'aistream', 'synth'])
 
 function getScenarioFromHash(): ScenarioKey | null {
   const hash = location.hash.replace('#', '')
@@ -1854,7 +2187,9 @@ function activateScenario(scenario: ScenarioKey) {
   stopMorph()
   stopVScroll()
   stopAiStream()
+  stopSynth()
   document.getElementById('aistream-bar')!.classList.remove('active')
+  document.getElementById('synth-bar')!.classList.remove('active')
 
   if (scenario === 'morph') {
     widthSlider.disabled = true
@@ -1879,6 +2214,15 @@ function activateScenario(scenario: ScenarioKey) {
     aiStreamPrevYogaHeights.clear()
     aiStreamShiftCount = 0
     renderAiStream()
+  } else if (scenario === 'synth') {
+    widthSlider.disabled = false
+    widthSlider.style.opacity = '1'
+    document.getElementById('synth-bar')!.classList.add('active')
+    // Generate one sample immediately
+    synthCount = 0
+    synthTotalTime = 0
+    generateOneSynth()
+    renderSynth()
   } else {
     widthSlider.disabled = false
     widthSlider.style.opacity = '1'
@@ -1921,6 +2265,9 @@ widthSlider.addEventListener('input', () => {
     renderEditor()
   } else if (scenarioSelect.value === 'aistream') {
     renderAiStream()
+  } else if (scenarioSelect.value === 'synth') {
+    generateOneSynth()
+    renderSynth()
   } else {
     render()
   }
@@ -1930,6 +2277,7 @@ fontSlider.addEventListener('input', () => {
   fontLabel.textContent = `${fontSlider.value}px`
   if (scenarioSelect.value === 'morph') return
   if (scenarioSelect.value === 'aistream') { renderAiStream(); return }
+  if (scenarioSelect.value === 'synth') { generateOneSynth(); renderSynth(); return }
   if (scenarioSelect.value === 'vscroll') {
     const w = parseInt(widthSlider.value)
     const fs = parseInt(fontSlider.value)
@@ -1949,6 +2297,7 @@ window.addEventListener('resize', () => {
   if (scenarioSelect.value === 'vscroll') { renderVScroll(); return }
   if (scenarioSelect.value === 'editor') { renderEditor(); return }
   if (scenarioSelect.value === 'aistream') { renderAiStream(); return }
+  if (scenarioSelect.value === 'synth') { renderSynth(); return }
   render()
 })
 
@@ -1980,3 +2329,20 @@ document.getElementById('vscroll-jump-input')!.addEventListener('keydown', (e) =
 
 // AI stream generate button
 document.getElementById('aistream-btn')!.addEventListener('click', startAiStream)
+
+// Synth buttons
+document.getElementById('synth-btn')!.addEventListener('click', startSynth)
+
+document.getElementById('synth-mode-visual')!.addEventListener('click', () => {
+  synthShowBbox = false
+  document.getElementById('synth-mode-visual')!.classList.add('active')
+  document.getElementById('synth-mode-bbox')!.classList.remove('active')
+  renderSynth()
+})
+
+document.getElementById('synth-mode-bbox')!.addEventListener('click', () => {
+  synthShowBbox = true
+  document.getElementById('synth-mode-bbox')!.classList.add('active')
+  document.getElementById('synth-mode-visual')!.classList.remove('active')
+  renderSynth()
+})
