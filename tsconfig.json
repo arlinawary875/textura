@@ -21,5 +21,6 @@
     "noUnusedParameters": true,
     "exactOptionalPropertyTypes": true,
     "noFallthroughCasesInSwitch": true
-  }
+  },
+  "exclude": ["mcp"]
 }
