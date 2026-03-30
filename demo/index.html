@@ -410,6 +410,35 @@
       color: #fff;
     }
 
+    .agent-bar {
+      max-width: 1400px;
+      margin: 0 auto 24px;
+      padding: 0 24px;
+      display: none;
+    }
+    .agent-bar.active { display: block; }
+    .agent-action-log {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      flex: 1;
+      min-width: 200px;
+      overflow: hidden;
+    }
+    .agent-action-tag {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 4px;
+      white-space: nowrap;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+    .agent-action-tag.type { background: #1e3a5f; color: #60a5fa; }
+    .agent-action-tag.add { background: #052e16; color: #4ade80; }
+    .agent-action-tag.resize { background: #422006; color: #fb923c; }
+    .agent-action-tag.toggle { background: #2e1065; color: #c084fc; }
+    .agent-action-tag.remove { background: #450a0a; color: #f87171; }
+
     .topbar {
       display: flex;
       justify-content: space-between;
@@ -547,6 +576,7 @@
         <option value="editor">Design Editor (drag to resize)</option>
         <option value="aistream">AI Streaming Report</option>
         <option value="synth">Synthetic UI Training Data</option>
+        <option value="agent">AI Agent Environment</option>
       </select>
     </div>
     <div class="control-group">
@@ -583,6 +613,29 @@
         <span id="textura-time">—</span>
         <span id="textura-nodes">—</span>
       </div>
+    </div>
+  </div>
+
+  <div class="agent-bar" id="agent-bar">
+    <div class="synth-inner">
+      <button class="aistream-btn" id="agent-btn">Run Agent</button>
+      <div class="vscroll-stat">
+        <div class="vscroll-stat-value good" id="agent-steps">0</div>
+        <div class="vscroll-stat-label">Actions taken</div>
+      </div>
+      <div class="vscroll-stat">
+        <div class="vscroll-stat-value good" id="agent-step-time">—</div>
+        <div class="vscroll-stat-label">Per-step layout</div>
+      </div>
+      <div class="vscroll-stat">
+        <div class="vscroll-stat-value good" id="agent-throughput">—</div>
+        <div class="vscroll-stat-label">Steps / sec (max)</div>
+      </div>
+      <div class="vscroll-stat">
+        <div class="vscroll-stat-value warn" id="agent-browser-compare">—</div>
+        <div class="vscroll-stat-label">vs Browser (~80ms)</div>
+      </div>
+      <div class="agent-action-log" id="agent-action-log"></div>
     </div>
   </div>
 

@@ -280,8 +280,8 @@ const scrollMessages: Message[] = Array.from({ length: VSCROLL_ITEM_COUNT }, (_,
   time: `${9 + Math.floor((i * 3) % 12)}:${String((i * 7) % 60).padStart(2, '0')}`,
 }))
 
-type ScenarioKey = 'chat' | 'cards' | 'i18n' | 'article' | 'stress' | 'morph' | 'vscroll' | 'editor' | 'aistream' | 'synth'
-const builders: Record<Exclude<ScenarioKey, 'vscroll' | 'editor' | 'aistream' | 'synth'>, (w: number, fs: number) => BoxNode> = {
+type ScenarioKey = 'chat' | 'cards' | 'i18n' | 'article' | 'stress' | 'morph' | 'vscroll' | 'editor' | 'aistream' | 'synth' | 'agent'
+const builders: Record<Exclude<ScenarioKey, 'vscroll' | 'editor' | 'aistream' | 'synth' | 'agent'>, (w: number, fs: number) => BoxNode> = {
   chat: buildChatTree, cards: buildCardsTree, i18n: buildI18nTree,
   article: buildArticleTree, stress: buildStressTree, morph: buildMorphTree,
 }
@@ -423,7 +423,7 @@ function renderLayout(
   const isAvatar = !isText && layout.children.length === 0 && w >= 20 && w <= 36 && h >= 20 && h <= 36
 
   // Card background
-  if (hasCardStyle && (scenario === 'chat' || scenario === 'i18n' || scenario === 'stress' || scenario === 'morph' || scenario === 'aistream' || scenario === 'synth')) {
+  if (hasCardStyle && (scenario === 'chat' || scenario === 'i18n' || scenario === 'stress' || scenario === 'morph' || scenario === 'aistream' || scenario === 'synth' || scenario === 'agent')) {
     ctx.fillStyle = palette.card
     roundRect(ctx, x, y, w, h, 6)
     ctx.fill()
@@ -602,6 +602,9 @@ const insights: Record<ScenarioKey, string> = {
   editor: `<p><strong>This is the technology behind the next generation of design tools.</strong> Every element on this poster — titles, body text, feature cards, statistics, pull quotes — is laid out using Textura's flexbox engine with pixel-perfect text measurement. The entire layout computation happens in under 1ms. Zero DOM nodes are used.</p>
 <p>Drag the blue resize handle on the right edge of the poster (Textura side). Watch cards reflow from 3 columns to 2 to 1. Watch text re-wrap across every container. Watch heights auto-adjust and siblings reposition. This is what Canva, Figma, and every canvas-based design editor has struggled with: <strong>accurate text-aware auto-layout without the DOM</strong>. With Textura, it's a single function call.</p>`,
 
+  agent: `<p><strong>AI agents that interact with UIs need a world model</strong> — a fast simulator that predicts what the screen looks like after any action. Currently this means a real browser: the agent types text, the browser reflows the DOM (~80ms), the agent observes the new state. At 80ms/step, training over millions of episodes takes months.</p>
+<p>Textura is the <strong>physics engine for UI</strong>. Each agent action (type text, add item, resize, toggle section) modifies the layout tree and Textura recomputes in <1ms. That's <strong>80x+ faster than a browser</strong>. Watch the agent take rapid actions — the left side shows ${yogaLink}'s world model giving wrong element positions (agent learns incorrect spatial relationships), while the right side shows Textura giving pixel-perfect observations. The throughput counter shows how many RL training steps per second are possible — thousands, not dozens.</p>`,
+
   synth: `<p><strong>Training vision-language models and UI agents requires millions of UI screenshots with ground-truth bounding boxes.</strong> Currently this means spinning up headless browsers — slow (~2 layouts/sec), expensive, and hard to scale. With Textura, you generate layouts at hundreds per second on a single thread, with pixel-perfect annotations, no browser needed.</p>
 <p>Left canvas shows the <strong>visual render</strong> — what the model sees during training. Right canvas shows <strong>bounding box annotations</strong> — the ground truth metadata (element type, coordinates, dimensions) overlaid on each node. Toggle the view mode to see both perspectives. Each UI is randomly composed with varied layouts, text lengths, and card counts. ${yogaLink} alone produces wrong bounding boxes because text heights are estimated. ${pretextLink} alone can't compute element positions. Only Textura gives both — accurate layout + accurate text — at scale.</p>`,
 
@@ -667,7 +670,7 @@ function measureWithDOM(tree: BoxNode | TextNode, containerWidth: number, fontSi
 
 function render() {
   const scenario = scenarioSelect.value as ScenarioKey
-  if (scenario === 'vscroll' || scenario === 'editor' || scenario === 'aistream' || scenario === 'synth') return
+  if (scenario === 'vscroll' || scenario === 'editor' || scenario === 'aistream' || scenario === 'synth' || scenario === 'agent') return
   const containerWidth = parseInt(widthSlider.value)
   const fontSize = parseInt(fontSlider.value)
 
@@ -1389,6 +1392,320 @@ document.addEventListener('mouseup', () => {
     canvasTextura.style.cursor = 'default'
   }
 })
+
+// ── AI Agent Environment ──────────────────────────────────────
+
+interface AgentAction {
+  type: 'type' | 'add' | 'resize' | 'toggle' | 'remove'
+  description: string
+}
+
+const agentActions: AgentAction[] = [
+  { type: 'type', description: 'type "Hey, how is the deployment going?"' },
+  { type: 'add', description: 'add message from Bob' },
+  { type: 'type', description: 'type "The CI pipeline passed all 847 tests"' },
+  { type: 'resize', description: 'resize window to 380px' },
+  { type: 'add', description: 'add message from Charlie' },
+  { type: 'type', description: 'type "Switching to the new layout engine eliminated all scroll jank"' },
+  { type: 'resize', description: 'resize window to 520px' },
+  { type: 'toggle', description: 'expand pinned messages section' },
+  { type: 'add', description: 'add pinned message' },
+  { type: 'type', description: 'type "Release v2.4 is scheduled for Thursday"' },
+  { type: 'resize', description: 'resize window to 440px' },
+  { type: 'remove', description: 'remove oldest message' },
+  { type: 'add', description: 'add message from Diana' },
+  { type: 'type', description: 'type "Performance benchmarks look great — 0.09ms per layout"' },
+  { type: 'toggle', description: 'collapse pinned messages' },
+  { type: 'resize', description: 'resize window to 600px' },
+  { type: 'add', description: 'add message from Eve' },
+  { type: 'type', description: 'type "Can we ship this to production today?"' },
+  { type: 'resize', description: 'resize window to 340px' },
+  { type: 'add', description: 'add status notification' },
+  { type: 'type', description: 'type "Deployed to staging. All health checks passing."' },
+  { type: 'resize', description: 'resize window to 480px' },
+  { type: 'remove', description: 'remove oldest message' },
+  { type: 'remove', description: 'remove oldest message' },
+  { type: 'add', description: 'add message from Frank' },
+  { type: 'type', description: 'type "LGTM, merging now"' },
+  { type: 'toggle', description: 'expand pinned messages section' },
+  { type: 'resize', description: 'resize window to 550px' },
+  { type: 'add', description: 'add message from Grace' },
+  { type: 'type', description: 'type "The new text measurement pipeline handles CJK, Arabic, Thai, and emoji perfectly"' },
+]
+
+let agentIntervalId: ReturnType<typeof setInterval> | null = null
+let agentStepCount = 0
+let agentLastStepTime = 0
+let agentContainerWidth = 440
+let agentShowPinned = false
+
+// Mutable state: the chat messages currently in the app
+let agentMessages: { author: string; text: string; time: string }[] = [
+  { author: 'Alice', text: 'Welcome to the team chat!', time: '9:00' },
+  { author: 'Bob', text: 'Thanks! Just setting up my environment.', time: '9:01' },
+]
+let agentPinnedMessages: { text: string }[] = [
+  { text: 'Team standup at 10:00 AM daily' },
+]
+
+const agentAuthors = ['Alice', 'Bob', 'Charlie', 'Diana', 'Eve', 'Frank', 'Grace', 'Henry']
+const agentNewMessages = [
+  'Just pushed the hotfix. Tests are green.',
+  'The layout engine benchmarks are incredible.',
+  'Anyone available for a quick code review?',
+  'Merged! Deploying to staging now.',
+  'Customer feedback on the new UI has been overwhelmingly positive.',
+  'Sprint velocity is up 34% this quarter.',
+  'The virtual scroll implementation is buttery smooth now.',
+]
+
+function buildAgentTree(w: number, fontSize: number): BoxNode {
+  const children: (BoxNode | TextNode)[] = [
+    // Channel header
+    { text: '#engineering', font: `700 ${fontSize + 4}px Inter`, lineHeight: Math.round((fontSize + 4) * 1.4) } satisfies TextNode,
+  ]
+
+  // Pinned section (togglable)
+  if (agentShowPinned && agentPinnedMessages.length > 0) {
+    children.push({
+      flexDirection: 'column', padding: 10, gap: 6,
+      children: [
+        { text: 'Pinned Messages', font: `600 ${fontSize - 1}px Inter`, lineHeight: Math.round((fontSize - 1) * 1.3) } satisfies TextNode,
+        ...agentPinnedMessages.map((m): TextNode => ({
+          text: m.text, font: `${fontSize - 1}px Inter`, lineHeight: Math.round((fontSize - 1) * 1.5),
+        })),
+      ],
+    } satisfies BoxNode)
+  }
+
+  // Chat messages
+  for (const m of agentMessages) {
+    children.push({
+      flexDirection: 'row', gap: 10, padding: 10,
+      children: [
+        { width: 28, height: 28 },
+        {
+          flexDirection: 'column', flexGrow: 1, flexShrink: 1, gap: 2,
+          children: [
+            { text: `${m.author}  ${m.time}`, font: `600 ${fontSize - 1}px Inter`, lineHeight: Math.round((fontSize - 1) * 1.3) } satisfies TextNode,
+            { text: m.text, font: `${fontSize}px Inter`, lineHeight: Math.round(fontSize * 1.5) } satisfies TextNode,
+          ],
+        } satisfies BoxNode,
+      ],
+    } satisfies BoxNode)
+  }
+
+  return { width: w, flexDirection: 'column', padding: 16, gap: 8, children }
+}
+
+function applyAgentAction(action: AgentAction) {
+  switch (action.type) {
+    case 'type': {
+      // Modify the last message's text
+      const text = action.description.replace("type \"", '').replace(/"$/, '')
+      if (agentMessages.length > 0) {
+        agentMessages[agentMessages.length - 1]!.text = text
+      }
+      break
+    }
+    case 'add': {
+      const author = agentAuthors[agentStepCount % agentAuthors.length]!
+      const text = agentNewMessages[agentStepCount % agentNewMessages.length]!
+      const hour = 9 + Math.floor(agentStepCount / 4)
+      const min = (agentStepCount * 7) % 60
+      agentMessages.push({ author, text, time: `${hour}:${String(min).padStart(2, '0')}` })
+      // Keep max 8 messages visible
+      if (agentMessages.length > 8) agentMessages.shift()
+      break
+    }
+    case 'resize': {
+      const match = action.description.match(/(\d+)px/)
+      if (match) agentContainerWidth = parseInt(match[1]!)
+      break
+    }
+    case 'toggle': {
+      agentShowPinned = !agentShowPinned
+      if (action.description.includes('expand')) agentShowPinned = true
+      if (action.description.includes('collapse')) agentShowPinned = false
+      break
+    }
+    case 'remove': {
+      if (agentMessages.length > 1) agentMessages.shift()
+      break
+    }
+  }
+}
+
+function renderAgent() {
+  const fontSize = parseInt(fontSlider.value)
+  const w = agentContainerWidth
+
+  const tree = buildAgentTree(w, fontSize)
+
+  const t0 = performance.now()
+  const texturaLayout = computeLayout(tree, { width: w })
+  agentLastStepTime = performance.now() - t0
+
+  const { layout: yogaLayout } = yogaLayoutTree(tree, w, fontSize)
+
+  const maxHeight = Math.max(texturaLayout.height, yogaLayout.height, 200)
+  const canvasH = Math.min(maxHeight + 20, 800)
+
+  const ctxY = setupCanvas(canvasYoga, canvasH)
+  const ctxT = setupCanvas(canvasTextura, canvasH)
+  const panelW = canvasYoga.clientWidth
+  const offsetX = Math.max(0, (panelW - w) / 2)
+
+  ctxY.fillStyle = palette.bg
+  ctxY.fillRect(0, 0, panelW, canvasH)
+  ctxT.fillStyle = palette.bg
+  ctxT.fillRect(0, 0, panelW, canvasH)
+
+  // Render with bounding box overlays to show "agent observation"
+  renderLayout(ctxY, yogaLayout, tree, offsetX, 10, 'agent', true)
+  renderLayout(ctxT, texturaLayout, tree, offsetX, 10, 'agent', false)
+
+  // Draw observation bounding boxes (what the agent "sees")
+  drawAgentObservation(ctxY, yogaLayout, offsetX, 10, true)
+  drawAgentObservation(ctxT, texturaLayout, offsetX, 10, false)
+
+  // Width indicator
+  ctxT.save()
+  ctxT.font = '500 11px Inter'
+  const wText = `viewport: ${w}px`
+  const wtw = ctxT.measureText(wText).width
+  ctxT.fillStyle = 'rgba(59,130,246,0.8)'
+  roundRect(ctxT, offsetX + w / 2 - wtw / 2 - 6, 4, wtw + 12, 16, 3)
+  ctxT.fill()
+  ctxT.fillStyle = '#fff'
+  ctxT.fillText(wText, offsetX + w / 2 - wtw / 2, 16)
+  ctxT.restore()
+
+  // Stats
+  const overlaps = countOverlaps(yogaLayout, tree, ctxY)
+  const heightDiff = Math.abs(texturaLayout.height - yogaLayout.height)
+
+  document.getElementById('yoga-time')!.textContent = `Height: ${Math.round(yogaLayout.height)}px (wrong)`
+  document.getElementById('yoga-nodes')!.textContent = `${overlaps} wrong observations`
+  document.getElementById('textura-time')!.textContent = `Layout: ${agentLastStepTime.toFixed(2)}ms`
+  document.getElementById('textura-nodes')!.textContent = `Height: ${Math.round(texturaLayout.height)}px`
+
+  document.getElementById('stat-overlap')!.textContent = `${overlaps}`
+  document.getElementById('stat-height-diff')!.textContent = `${Math.round(heightDiff)}px`
+  document.getElementById('stat-resize-time')!.textContent = `${agentLastStepTime.toFixed(2)}ms`
+  document.getElementById('stat-dom-time')!.textContent = `${agentStepCount}`
+
+  document.getElementById('agent-steps')!.textContent = `${agentStepCount}`
+  document.getElementById('agent-step-time')!.textContent = `${agentLastStepTime.toFixed(2)}ms`
+
+  const speedup = agentLastStepTime > 0 ? Math.round(80 / agentLastStepTime) : 0
+  document.getElementById('agent-browser-compare')!.textContent = `${speedup}x faster`
+
+  document.getElementById('insight-text')!.innerHTML = insights['agent']
+}
+
+function drawAgentObservation(ctx: CanvasRenderingContext2D, layout: ComputedLayout, ox: number, oy: number, isYoga: boolean) {
+  // Draw thin observation boxes around interactive elements
+  const color = isYoga ? '#fb923c40' : '#4ade8040'
+  const borderColor = isYoga ? '#fb923c80' : '#4ade8080'
+
+  function drawObs(l: ComputedLayout, px: number, py: number, depth: number) {
+    const x = px + l.x
+    const y = py + l.y
+
+    // Draw observation box on leaf nodes and direct children of root
+    if (depth === 1 || (l.text !== undefined && depth <= 3)) {
+      ctx.strokeStyle = borderColor
+      ctx.lineWidth = 1
+      ctx.setLineDash([3, 3])
+      ctx.strokeRect(x, y, l.width, l.height)
+      ctx.setLineDash([])
+
+      if (depth === 1) {
+        ctx.fillStyle = color
+        ctx.fillRect(x, y, l.width, l.height)
+      }
+    }
+
+    for (const child of l.children) {
+      drawObs(child, x, y, depth + 1)
+    }
+  }
+
+  drawObs(layout, ox, oy, 0)
+}
+
+function startAgent() {
+  document.getElementById('agent-bar')!.classList.add('active')
+  const btn = document.getElementById('agent-btn')!
+
+  if (agentIntervalId !== null) {
+    stopAgent()
+    return
+  }
+
+  // Reset state
+  agentStepCount = 0
+  agentContainerWidth = parseInt(widthSlider.value)
+  agentShowPinned = false
+  agentMessages = [
+    { author: 'Alice', text: 'Welcome to the team chat!', time: '9:00' },
+    { author: 'Bob', text: 'Thanks! Just setting up my environment.', time: '9:01' },
+  ]
+  agentPinnedMessages = [{ text: 'Team standup at 10:00 AM daily' }]
+
+  btn.textContent = 'Stop'
+  btn.classList.add('running')
+
+  renderAgent()
+
+  // Benchmark throughput in background
+  const fontSize = parseInt(fontSlider.value)
+  const benchTree = buildAgentTree(440, fontSize)
+  computeLayout(benchTree, { width: 440 }) // prime cache
+  let benchCount = 0
+  const benchStart = performance.now()
+  while (performance.now() - benchStart < 200) {
+    computeLayout(benchTree, { width: 300 + (benchCount % 300) })
+    benchCount++
+  }
+  const benchElapsed = performance.now() - benchStart
+  const stepsPerSec = Math.round(benchCount / (benchElapsed / 1000))
+  document.getElementById('agent-throughput')!.textContent = `~${stepsPerSec.toLocaleString()}`
+
+  // Run agent actions visually at 3/sec
+  let actionIdx = 0
+  agentIntervalId = setInterval(() => {
+    if (actionIdx >= agentActions.length) {
+      actionIdx = 0 // loop
+    }
+
+    const action = agentActions[actionIdx]!
+    applyAgentAction(action)
+    agentStepCount++
+    actionIdx++
+
+    // Update action log
+    const logEl = document.getElementById('agent-action-log')!
+    const tag = document.createElement('span')
+    tag.className = `agent-action-tag ${action.type}`
+    tag.textContent = action.description.length > 35 ? action.description.slice(0, 35) + '...' : action.description
+    logEl.insertBefore(tag, logEl.firstChild)
+    while (logEl.children.length > 4) logEl.removeChild(logEl.lastChild!)
+
+    renderAgent()
+  }, 350)
+}
+
+function stopAgent() {
+  if (agentIntervalId !== null) {
+    clearInterval(agentIntervalId)
+    agentIntervalId = null
+  }
+  const btn = document.getElementById('agent-btn')!
+  btn.textContent = 'Run Agent'
+  btn.classList.remove('running')
+}
 
 // ── Synthetic UI Training Data ─────────────────────────────────
 
@@ -2170,7 +2487,7 @@ function drawFpsOverlay(ctx: CanvasRenderingContext2D, panelW: number, frameTime
 
 // ── Routing ───────────────────────────────────────────────────
 
-const validScenarios = new Set<ScenarioKey>(['chat', 'cards', 'i18n', 'article', 'stress', 'morph', 'vscroll', 'editor', 'aistream', 'synth'])
+const validScenarios = new Set<ScenarioKey>(['chat', 'cards', 'i18n', 'article', 'stress', 'morph', 'vscroll', 'editor', 'aistream', 'synth', 'agent'])
 
 function getScenarioFromHash(): ScenarioKey | null {
   const hash = location.hash.replace('#', '')
@@ -2188,8 +2505,10 @@ function activateScenario(scenario: ScenarioKey) {
   stopVScroll()
   stopAiStream()
   stopSynth()
+  stopAgent()
   document.getElementById('aistream-bar')!.classList.remove('active')
   document.getElementById('synth-bar')!.classList.remove('active')
+  document.getElementById('agent-bar')!.classList.remove('active')
 
   if (scenario === 'morph') {
     widthSlider.disabled = true
@@ -2223,6 +2542,16 @@ function activateScenario(scenario: ScenarioKey) {
     synthTotalTime = 0
     generateOneSynth()
     renderSynth()
+  } else if (scenario === 'agent') {
+    widthSlider.disabled = false
+    widthSlider.style.opacity = '1'
+    document.getElementById('agent-bar')!.classList.add('active')
+    agentContainerWidth = parseInt(widthSlider.value)
+    agentMessages = [
+      { author: 'Alice', text: 'Welcome to the team chat!', time: '9:00' },
+      { author: 'Bob', text: 'Thanks! Just setting up my environment.', time: '9:01' },
+    ]
+    renderAgent()
   } else {
     widthSlider.disabled = false
     widthSlider.style.opacity = '1'
@@ -2268,6 +2597,9 @@ widthSlider.addEventListener('input', () => {
   } else if (scenarioSelect.value === 'synth') {
     generateOneSynth()
     renderSynth()
+  } else if (scenarioSelect.value === 'agent') {
+    agentContainerWidth = parseInt(widthSlider.value)
+    renderAgent()
   } else {
     render()
   }
@@ -2278,6 +2610,7 @@ fontSlider.addEventListener('input', () => {
   if (scenarioSelect.value === 'morph') return
   if (scenarioSelect.value === 'aistream') { renderAiStream(); return }
   if (scenarioSelect.value === 'synth') { generateOneSynth(); renderSynth(); return }
+  if (scenarioSelect.value === 'agent') { renderAgent(); return }
   if (scenarioSelect.value === 'vscroll') {
     const w = parseInt(widthSlider.value)
     const fs = parseInt(fontSlider.value)
@@ -2298,6 +2631,7 @@ window.addEventListener('resize', () => {
   if (scenarioSelect.value === 'editor') { renderEditor(); return }
   if (scenarioSelect.value === 'aistream') { renderAiStream(); return }
   if (scenarioSelect.value === 'synth') { renderSynth(); return }
+  if (scenarioSelect.value === 'agent') { renderAgent(); return }
   render()
 })
 
@@ -2346,3 +2680,6 @@ document.getElementById('synth-mode-bbox')!.addEventListener('click', () => {
   document.getElementById('synth-mode-visual')!.classList.remove('active')
   renderSynth()
 })
+
+// Agent button
+document.getElementById('agent-btn')!.addEventListener('click', startAgent)
