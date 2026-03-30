@@ -439,6 +439,40 @@
     .agent-action-tag.toggle { background: #2e1065; color: #c084fc; }
     .agent-action-tag.remove { background: #450a0a; color: #f87171; }
 
+    .critic-bar {
+      max-width: 1400px;
+      margin: 0 auto 24px;
+      padding: 0 24px;
+      display: none;
+    }
+    .critic-bar.active { display: block; }
+    .critic-issue {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: #a1a1aa;
+      padding: 4px 0;
+    }
+    .critic-issue .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .critic-issue .dot.error { background: #ef4444; }
+    .critic-issue .dot.fixed { background: #4ade80; }
+    .critic-issue.is-fixed { color: #52525b; text-decoration: line-through; }
+    .critic-issues-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      flex: 1;
+      min-width: 200px;
+      max-height: 80px;
+      overflow-y: auto;
+    }
+
     .topbar {
       display: flex;
       justify-content: space-between;
@@ -577,6 +611,7 @@
         <option value="aistream">AI Streaming Report</option>
         <option value="synth">Synthetic UI Training Data</option>
         <option value="agent">AI Agent Environment</option>
+        <option value="critic">AI Layout Critic</option>
       </select>
     </div>
     <div class="control-group">
@@ -613,6 +648,25 @@
         <span id="textura-time">—</span>
         <span id="textura-nodes">—</span>
       </div>
+    </div>
+  </div>
+
+  <div class="critic-bar" id="critic-bar">
+    <div class="synth-inner">
+      <button class="aistream-btn" id="critic-btn">Run Critic</button>
+      <div class="vscroll-stat">
+        <div class="vscroll-stat-value bad" id="critic-found">0</div>
+        <div class="vscroll-stat-label">Issues found</div>
+      </div>
+      <div class="vscroll-stat">
+        <div class="vscroll-stat-value good" id="critic-fixed">0</div>
+        <div class="vscroll-stat-label">Issues fixed</div>
+      </div>
+      <div class="vscroll-stat">
+        <div class="vscroll-stat-value good" id="critic-time">—</div>
+        <div class="vscroll-stat-label">Analysis time</div>
+      </div>
+      <div class="critic-issues-list" id="critic-issues"></div>
     </div>
   </div>
 

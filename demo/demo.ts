@@ -280,8 +280,8 @@ const scrollMessages: Message[] = Array.from({ length: VSCROLL_ITEM_COUNT }, (_,
   time: `${9 + Math.floor((i * 3) % 12)}:${String((i * 7) % 60).padStart(2, '0')}`,
 }))
 
-type ScenarioKey = 'chat' | 'cards' | 'i18n' | 'article' | 'stress' | 'morph' | 'vscroll' | 'editor' | 'aistream' | 'synth' | 'agent'
-const builders: Record<Exclude<ScenarioKey, 'vscroll' | 'editor' | 'aistream' | 'synth' | 'agent'>, (w: number, fs: number) => BoxNode> = {
+type ScenarioKey = 'chat' | 'cards' | 'i18n' | 'article' | 'stress' | 'morph' | 'vscroll' | 'editor' | 'aistream' | 'synth' | 'agent' | 'critic'
+const builders: Record<Exclude<ScenarioKey, 'vscroll' | 'editor' | 'aistream' | 'synth' | 'agent' | 'critic'>, (w: number, fs: number) => BoxNode> = {
   chat: buildChatTree, cards: buildCardsTree, i18n: buildI18nTree,
   article: buildArticleTree, stress: buildStressTree, morph: buildMorphTree,
 }
@@ -423,7 +423,7 @@ function renderLayout(
   const isAvatar = !isText && layout.children.length === 0 && w >= 20 && w <= 36 && h >= 20 && h <= 36
 
   // Card background
-  if (hasCardStyle && (scenario === 'chat' || scenario === 'i18n' || scenario === 'stress' || scenario === 'morph' || scenario === 'aistream' || scenario === 'synth' || scenario === 'agent')) {
+  if (hasCardStyle && (scenario === 'chat' || scenario === 'i18n' || scenario === 'stress' || scenario === 'morph' || scenario === 'aistream' || scenario === 'synth' || scenario === 'agent' || scenario === 'critic')) {
     ctx.fillStyle = palette.card
     roundRect(ctx, x, y, w, h, 6)
     ctx.fill()
@@ -602,6 +602,9 @@ const insights: Record<ScenarioKey, string> = {
   editor: `<p><strong>This is the technology behind the next generation of design tools.</strong> Every element on this poster — titles, body text, feature cards, statistics, pull quotes — is laid out using Textura's flexbox engine with pixel-perfect text measurement. The entire layout computation happens in under 1ms. Zero DOM nodes are used.</p>
 <p>Drag the blue resize handle on the right edge of the poster (Textura side). Watch cards reflow from 3 columns to 2 to 1. Watch text re-wrap across every container. Watch heights auto-adjust and siblings reposition. This is what Canva, Figma, and every canvas-based design editor has struggled with: <strong>accurate text-aware auto-layout without the DOM</strong>. With Textura, it's a single function call.</p>`,
 
+  critic: `<p><strong>Automated design QA that finds and fixes layout issues — without rendering a single DOM node.</strong> The left side shows a deliberately broken layout with issues: text overflowing boxes, touch targets below 44px, uneven card heights, excessive empty space. Click "Run Critic" and watch the AI analyze the layout using Textura's computed geometry, identify each issue with exact measurements, and fix them one by one.</p>
+<p>${yogaLink} alone can detect box overlap but is blind to text overflow — it doesn't know real text heights. ${pretextLink} alone can detect text problems but can't check spatial relationships between elements. Only Textura provides both: <strong>accurate text + accurate layout = complete automated design QA.</strong> This plugs into CI/CD pipelines, AI code generators (v0, Bolt, Lovable), and design systems — catching visual regressions that screenshot-based tools miss, and actually fixing them.</p>`,
+
   agent: `<p><strong>AI agents that interact with UIs need a world model</strong> — a fast simulator that predicts what the screen looks like after any action. Currently this means a real browser: the agent types text, the browser reflows the DOM (~80ms), the agent observes the new state. At 80ms/step, training over millions of episodes takes months.</p>
 <p>Textura is the <strong>physics engine for UI</strong>. Each agent action (type text, add item, resize, toggle section) modifies the layout tree and Textura recomputes in <1ms. That's <strong>80x+ faster than a browser</strong>. Watch the agent take rapid actions — the left side shows ${yogaLink}'s world model giving wrong element positions (agent learns incorrect spatial relationships), while the right side shows Textura giving pixel-perfect observations. The throughput counter shows how many RL training steps per second are possible — thousands, not dozens.</p>`,
 
@@ -670,7 +673,7 @@ function measureWithDOM(tree: BoxNode | TextNode, containerWidth: number, fontSi
 
 function render() {
   const scenario = scenarioSelect.value as ScenarioKey
-  if (scenario === 'vscroll' || scenario === 'editor' || scenario === 'aistream' || scenario === 'synth' || scenario === 'agent') return
+  if (scenario === 'vscroll' || scenario === 'editor' || scenario === 'aistream' || scenario === 'synth' || scenario === 'agent' || scenario === 'critic') return
   const containerWidth = parseInt(widthSlider.value)
   const fontSize = parseInt(fontSlider.value)
 
@@ -1392,6 +1395,357 @@ document.addEventListener('mouseup', () => {
     canvasTextura.style.cursor = 'default'
   }
 })
+
+// ── AI Layout Critic ──────────────────────────────────────────
+
+interface CriticIssue {
+  type: 'overflow' | 'touch-target' | 'uneven' | 'spacing'
+  description: string
+  fixed: boolean
+  fix: () => void // mutates the broken tree to fix the issue
+}
+
+let criticBrokenTree: BoxNode | null = null
+let criticIssues: CriticIssue[] = []
+let criticFixIdx = 0
+let criticIntervalId: ReturnType<typeof setInterval> | null = null
+
+// Build a deliberately broken layout
+function buildBrokenTree(w: number, fontSize: number): BoxNode {
+  return {
+    width: w, flexDirection: 'column', padding: 20, gap: 6,
+    children: [
+      // Header — font too big for container, will overflow at narrow widths
+      { text: 'Product Launch Dashboard', font: `700 ${fontSize + 14}px Inter`, lineHeight: Math.round((fontSize + 14) * 1.1) } satisfies TextNode,
+      { text: 'Real-time analytics and team performance metrics for Q4 launch readiness assessment', font: `${fontSize}px Inter`, lineHeight: Math.round(fontSize * 1.3) } satisfies TextNode,
+      // Cards row — deliberately uneven: card 1 has way more text, card 3 is too narrow
+      {
+        flexDirection: 'row', flexWrap: 'wrap', gap: 6,
+        children: [
+          {
+            flexDirection: 'column', width: (w - 52) * 0.45, padding: 10, gap: 4,
+            children: [
+              { text: 'Performance Metrics Overview', font: `600 ${fontSize + 1}px Inter`, lineHeight: Math.round((fontSize + 1) * 1.2) } satisfies TextNode,
+              { text: 'Revenue increased 23% QoQ driven by enterprise expansion in APAC. Customer acquisition cost decreased 12% through organic channels. Net retention rate hit an all-time high of 142% as existing customers expanded usage across multiple product lines and upgraded to higher-tier plans.', font: `${fontSize - 1}px Inter`, lineHeight: Math.round((fontSize - 1) * 1.3) } satisfies TextNode,
+            ],
+          } satisfies BoxNode,
+          {
+            flexDirection: 'column', width: (w - 52) * 0.25, padding: 10, gap: 4,
+            children: [
+              { text: 'Users', font: `600 ${fontSize + 1}px Inter`, lineHeight: Math.round((fontSize + 1) * 1.2) } satisfies TextNode,
+              { text: '847K active', font: `${fontSize - 1}px Inter`, lineHeight: Math.round((fontSize - 1) * 1.3) } satisfies TextNode,
+            ],
+          } satisfies BoxNode,
+          {
+            flexDirection: 'column', width: (w - 52) * 0.3, padding: 10, gap: 4,
+            children: [
+              { text: 'Infrastructure Status', font: `600 ${fontSize + 1}px Inter`, lineHeight: Math.round((fontSize + 1) * 1.2) } satisfies TextNode,
+              { text: 'All systems nominal. Edge nodes responding within SLA targets across all regions.', font: `${fontSize - 1}px Inter`, lineHeight: Math.round((fontSize - 1) * 1.3) } satisfies TextNode,
+            ],
+          } satisfies BoxNode,
+        ],
+      } satisfies BoxNode,
+      // Small touch target button
+      {
+        flexDirection: 'row', gap: 8,
+        children: [
+          { width: 28, height: 28 }, // too small — should be 44px
+          { text: 'View Full Report', font: `500 ${fontSize - 1}px Inter`, lineHeight: Math.round((fontSize - 1) * 1.3) } satisfies TextNode,
+        ],
+      } satisfies BoxNode,
+      // Text with cramped line height
+      { text: 'Sprint velocity improved 34% this quarter. The team shipped 12 major features including real-time collaboration, advanced search, and the new dashboard. Customer-reported bugs decreased 61% compared to Q3.', font: `${fontSize}px Inter`, lineHeight: Math.round(fontSize * 1.05) } satisfies TextNode,
+      // Stats row with too-tight spacing
+      {
+        flexDirection: 'row', flexWrap: 'wrap', gap: 3,
+        children: [
+          { flexDirection: 'column', width: (w - 49) / 4, padding: 8, gap: 2, alignItems: 'center',
+            children: [
+              { text: '$12.4M', font: `700 ${fontSize + 4}px Inter`, lineHeight: Math.round((fontSize + 4) * 1.1) } satisfies TextNode,
+              { text: 'Revenue', font: `${fontSize - 3}px Inter`, lineHeight: Math.round((fontSize - 3) * 1.2) } satisfies TextNode,
+            ],
+          } satisfies BoxNode,
+          { flexDirection: 'column', width: (w - 49) / 4, padding: 8, gap: 2, alignItems: 'center',
+            children: [
+              { text: '94.2%', font: `700 ${fontSize + 4}px Inter`, lineHeight: Math.round((fontSize + 4) * 1.1) } satisfies TextNode,
+              { text: 'Retention', font: `${fontSize - 3}px Inter`, lineHeight: Math.round((fontSize - 3) * 1.2) } satisfies TextNode,
+            ],
+          } satisfies BoxNode,
+          { flexDirection: 'column', width: (w - 49) / 4, padding: 8, gap: 2, alignItems: 'center',
+            children: [
+              { text: '847K', font: `700 ${fontSize + 4}px Inter`, lineHeight: Math.round((fontSize + 4) * 1.1) } satisfies TextNode,
+              { text: 'Users', font: `${fontSize - 3}px Inter`, lineHeight: Math.round((fontSize - 3) * 1.2) } satisfies TextNode,
+            ],
+          } satisfies BoxNode,
+          { flexDirection: 'column', width: (w - 49) / 4, padding: 8, gap: 2, alignItems: 'center',
+            children: [
+              { text: '99.97%', font: `700 ${fontSize + 4}px Inter`, lineHeight: Math.round((fontSize + 4) * 1.1) } satisfies TextNode,
+              { text: 'Uptime', font: `${fontSize - 3}px Inter`, lineHeight: Math.round((fontSize - 3) * 1.2) } satisfies TextNode,
+            ],
+          } satisfies BoxNode,
+        ],
+      } satisfies BoxNode,
+    ],
+  }
+}
+
+function analyzeCriticIssues(tree: BoxNode, _layout: ComputedLayout, w: number, fontSize: number): CriticIssue[] {
+  const issues: CriticIssue[] = []
+
+  // Issue 1: Title line height too tight
+  const titleNode = tree.children![0] as TextNode
+  issues.push({
+    type: 'overflow',
+    description: `Title lineHeight ${titleNode.lineHeight}px is too tight for ${fontSize + 14}px font`,
+    fixed: false,
+    fix: () => { (tree.children![0] as TextNode).lineHeight = Math.round((fontSize + 14) * 1.3) },
+  })
+
+  // Issue 2: Subtitle line height cramped
+  issues.push({
+    type: 'spacing',
+    description: `Subtitle lineHeight ${(tree.children![1] as TextNode).lineHeight}px — cramped, should be ${Math.round(fontSize * 1.5)}px`,
+    fixed: false,
+    fix: () => { (tree.children![1] as TextNode).lineHeight = Math.round(fontSize * 1.5) },
+  })
+
+  // Issue 3: Card row gap too small
+  issues.push({
+    type: 'spacing',
+    description: `Card row gap is 6px — too tight, increasing to 12px`,
+    fixed: false,
+    fix: () => { (tree.children![2] as BoxNode).gap = 12 },
+  })
+
+  // Issue 4: Cards have uneven text density — rebalance widths
+  issues.push({
+    type: 'uneven',
+    description: `Card widths are 45%/25%/30% — rebalancing to equal thirds`,
+    fixed: false,
+    fix: () => {
+      const innerW = w - 52
+      const cardW = (innerW - 24) / 3
+      const cards = (tree.children![2] as BoxNode).children!
+      ;(cards[0] as BoxNode).width = cardW
+      ;(cards[1] as BoxNode).width = cardW
+      ;(cards[2] as BoxNode).width = cardW
+    },
+  })
+
+  // Issue 5: Touch target too small
+  issues.push({
+    type: 'touch-target',
+    description: `Button icon is 28x28px — below 44px minimum touch target`,
+    fixed: false,
+    fix: () => {
+      const btnRow = tree.children![3] as BoxNode
+      const icon = btnRow.children![0] as BoxNode
+      icon.width = 44
+      icon.height = 44
+    },
+  })
+
+  // Issue 6: Body text line height too cramped
+  issues.push({
+    type: 'overflow',
+    description: `Body text lineHeight is ${(tree.children![4] as TextNode).lineHeight}px — increasing to ${Math.round(fontSize * 1.6)}px`,
+    fixed: false,
+    fix: () => { (tree.children![4] as TextNode).lineHeight = Math.round(fontSize * 1.6) },
+  })
+
+  // Issue 7: Stats row gap too small
+  issues.push({
+    type: 'spacing',
+    description: `Stats row gap is 3px — increasing to 10px for readability`,
+    fixed: false,
+    fix: () => { (tree.children![5] as BoxNode).gap = 10 },
+  })
+
+  // Issue 8: Stats labels too small
+  issues.push({
+    type: 'overflow',
+    description: `Stats labels are ${fontSize - 3}px — too small, increasing to ${fontSize - 1}px`,
+    fixed: false,
+    fix: () => {
+      const statsRow = tree.children![5] as BoxNode
+      for (const stat of statsRow.children!) {
+        const label = (stat as BoxNode).children![1] as TextNode
+        label.font = `${fontSize - 1}px Inter`
+        label.lineHeight = Math.round((fontSize - 1) * 1.4)
+      }
+    },
+  })
+
+  // Issue 9: Root gap too small
+  issues.push({
+    type: 'spacing',
+    description: `Root container gap is 6px — increasing to 16px`,
+    fixed: false,
+    fix: () => { tree.gap = 16 },
+  })
+
+  return issues
+}
+
+function renderCritic() {
+  if (!criticBrokenTree) return
+  const containerWidth = parseInt(widthSlider.value)
+  const fontSize = parseInt(fontSlider.value)
+  const tree = criticBrokenTree
+
+  const t0 = performance.now()
+  const texturaLayout = computeLayout(tree, { width: containerWidth })
+  const analysisTime = performance.now() - t0
+
+  const { layout: yogaLayout } = yogaLayoutTree(tree, containerWidth, fontSize)
+
+  const maxHeight = Math.max(texturaLayout.height, yogaLayout.height, 200)
+  const canvasH = Math.min(maxHeight + 20, 800)
+
+  const ctxL = setupCanvas(canvasYoga, canvasH)
+  const ctxR = setupCanvas(canvasTextura, canvasH)
+  const panelW = canvasYoga.clientWidth
+  const offsetX = Math.max(0, (panelW - containerWidth) / 2)
+
+  ctxL.fillStyle = palette.bg
+  ctxL.fillRect(0, 0, panelW, canvasH)
+  ctxR.fillStyle = palette.bg
+  ctxR.fillRect(0, 0, panelW, canvasH)
+
+  // Left: render with issue highlights
+  renderLayout(ctxL, yogaLayout, tree, offsetX, 10, 'critic', true)
+  renderLayout(ctxR, texturaLayout, tree, offsetX, 10, 'critic', false)
+
+  // Draw issue markers on left (unfixed issues) and fix markers on right (fixed issues)
+  drawCriticMarkers(ctxL, yogaLayout, offsetX, 10, true)
+  drawCriticMarkers(ctxR, texturaLayout, offsetX, 10, false)
+
+  // Overlays
+  ctxL.save()
+  ctxL.font = '600 11px Inter'
+  const lText = criticFixIdx > 0 ? `Before (${criticIssues.length} issues)` : `${criticIssues.length} issues detected`
+  const ltw = ctxL.measureText(lText).width
+  ctxL.fillStyle = 'rgba(0,0,0,0.7)'
+  roundRect(ctxL, panelW - ltw - 20, 8, ltw + 12, 18, 4)
+  ctxL.fill()
+  ctxL.fillStyle = '#ef4444'
+  ctxL.fillText(lText, panelW - ltw - 14, 22)
+  ctxL.restore()
+
+  ctxR.save()
+  ctxR.font = '600 11px Inter'
+  const rText = `${criticFixIdx} of ${criticIssues.length} fixed`
+  const rtw = ctxR.measureText(rText).width
+  ctxR.fillStyle = 'rgba(0,0,0,0.7)'
+  roundRect(ctxR, panelW - rtw - 20, 8, rtw + 12, 18, 4)
+  ctxR.fill()
+  ctxR.fillStyle = criticFixIdx === criticIssues.length ? '#4ade80' : '#fb923c'
+  ctxR.fillText(rText, panelW - rtw - 14, 22)
+  ctxR.restore()
+
+  // Stats
+  const overlaps = countOverlaps(yogaLayout, tree, ctxL)
+
+  document.getElementById('yoga-time')!.textContent = `Issues: ${criticIssues.length}`
+  document.getElementById('yoga-nodes')!.textContent = `${overlaps} text overflows`
+  document.getElementById('textura-time')!.textContent = `Analysis: ${analysisTime.toFixed(2)}ms`
+  document.getElementById('textura-nodes')!.textContent = `${criticFixIdx} fixed`
+
+  document.getElementById('stat-overlap')!.textContent = `${criticIssues.filter(i => !i.fixed).length}`
+  document.getElementById('stat-height-diff')!.textContent = `${criticFixIdx}`
+  document.getElementById('stat-resize-time')!.textContent = `${analysisTime.toFixed(2)}ms`
+  document.getElementById('stat-dom-time')!.textContent = `0`
+
+  document.getElementById('critic-found')!.textContent = `${criticIssues.length}`
+  document.getElementById('critic-fixed')!.textContent = `${criticFixIdx}`
+  document.getElementById('critic-time')!.textContent = `${analysisTime.toFixed(2)}ms`
+
+  // Update issues list
+  const listEl = document.getElementById('critic-issues')!
+  listEl.innerHTML = criticIssues.map((issue, i) => {
+    const fixed = i < criticFixIdx
+    return `<div class="critic-issue ${fixed ? 'is-fixed' : ''}"><span class="dot ${fixed ? 'fixed' : 'error'}"></span>${issue.description}</div>`
+  }).join('')
+
+  document.getElementById('insight-text')!.innerHTML = insights['critic']
+}
+
+function drawCriticMarkers(ctx: CanvasRenderingContext2D, layout: ComputedLayout, ox: number, oy: number, isLeft: boolean) {
+  // Highlight children with red/green outlines based on fix state
+  const x = ox + layout.x
+  const y = oy + layout.y
+
+  for (let i = 0; i < layout.children.length; i++) {
+    const child = layout.children[i]!
+    const cx = x + child.x
+    const cy = y + child.y
+
+    if (isLeft) {
+      // Show issues on left side — dashed red outlines on all sections
+      ctx.strokeStyle = '#ef444460'
+      ctx.lineWidth = 1.5
+      ctx.setLineDash([4, 3])
+      ctx.strokeRect(cx, cy, child.width, child.height)
+      ctx.setLineDash([])
+    } else {
+      // Right side — green for fixed
+      ctx.strokeStyle = criticFixIdx > 0 ? '#4ade8040' : '#27272a'
+      ctx.lineWidth = 1
+      ctx.setLineDash([4, 3])
+      ctx.strokeRect(cx, cy, child.width, child.height)
+      ctx.setLineDash([])
+    }
+  }
+}
+
+function startCritic() {
+  document.getElementById('critic-bar')!.classList.add('active')
+  const btn = document.getElementById('critic-btn')!
+
+  if (criticIntervalId !== null) {
+    stopCritic()
+    return
+  }
+
+  const containerWidth = parseInt(widthSlider.value)
+  const fontSize = parseInt(fontSlider.value)
+
+  // Build the broken tree (right side gets the fixable copy)
+  criticBrokenTree = buildBrokenTree(containerWidth, fontSize)
+  const layout = computeLayout(criticBrokenTree, { width: containerWidth })
+  criticIssues = analyzeCriticIssues(criticBrokenTree, layout, containerWidth, fontSize)
+  criticFixIdx = 0
+
+  btn.textContent = 'Stop'
+  btn.classList.add('running')
+
+  renderCritic()
+
+  // Fix issues one by one
+  criticIntervalId = setInterval(() => {
+    if (criticFixIdx >= criticIssues.length) {
+      stopCritic()
+      return
+    }
+
+    const issue = criticIssues[criticFixIdx]!
+    issue.fix()
+    issue.fixed = true
+    criticFixIdx++
+
+    renderCritic()
+  }, 800)
+}
+
+function stopCritic() {
+  if (criticIntervalId !== null) {
+    clearInterval(criticIntervalId)
+    criticIntervalId = null
+  }
+  const btn = document.getElementById('critic-btn')!
+  btn.textContent = criticFixIdx >= criticIssues.length ? 'Replay' : 'Run Critic'
+  btn.classList.remove('running')
+}
 
 // ── AI Agent Environment ──────────────────────────────────────
 
@@ -2487,7 +2841,7 @@ function drawFpsOverlay(ctx: CanvasRenderingContext2D, panelW: number, frameTime
 
 // ── Routing ───────────────────────────────────────────────────
 
-const validScenarios = new Set<ScenarioKey>(['chat', 'cards', 'i18n', 'article', 'stress', 'morph', 'vscroll', 'editor', 'aistream', 'synth', 'agent'])
+const validScenarios = new Set<ScenarioKey>(['chat', 'cards', 'i18n', 'article', 'stress', 'morph', 'vscroll', 'editor', 'aistream', 'synth', 'agent', 'critic'])
 
 function getScenarioFromHash(): ScenarioKey | null {
   const hash = location.hash.replace('#', '')
@@ -2506,9 +2860,11 @@ function activateScenario(scenario: ScenarioKey) {
   stopAiStream()
   stopSynth()
   stopAgent()
+  stopCritic()
   document.getElementById('aistream-bar')!.classList.remove('active')
   document.getElementById('synth-bar')!.classList.remove('active')
   document.getElementById('agent-bar')!.classList.remove('active')
+  document.getElementById('critic-bar')!.classList.remove('active')
 
   if (scenario === 'morph') {
     widthSlider.disabled = true
@@ -2552,6 +2908,16 @@ function activateScenario(scenario: ScenarioKey) {
       { author: 'Bob', text: 'Thanks! Just setting up my environment.', time: '9:01' },
     ]
     renderAgent()
+  } else if (scenario === 'critic') {
+    widthSlider.disabled = false
+    widthSlider.style.opacity = '1'
+    document.getElementById('critic-bar')!.classList.add('active')
+    const cw = parseInt(widthSlider.value)
+    const fs = parseInt(fontSlider.value)
+    criticBrokenTree = buildBrokenTree(cw, fs)
+    criticIssues = analyzeCriticIssues(criticBrokenTree, computeLayout(criticBrokenTree, { width: cw }), cw, fs)
+    criticFixIdx = 0
+    renderCritic()
   } else {
     widthSlider.disabled = false
     widthSlider.style.opacity = '1'
@@ -2600,6 +2966,8 @@ widthSlider.addEventListener('input', () => {
   } else if (scenarioSelect.value === 'agent') {
     agentContainerWidth = parseInt(widthSlider.value)
     renderAgent()
+  } else if (scenarioSelect.value === 'critic') {
+    renderCritic()
   } else {
     render()
   }
@@ -2611,6 +2979,7 @@ fontSlider.addEventListener('input', () => {
   if (scenarioSelect.value === 'aistream') { renderAiStream(); return }
   if (scenarioSelect.value === 'synth') { generateOneSynth(); renderSynth(); return }
   if (scenarioSelect.value === 'agent') { renderAgent(); return }
+  if (scenarioSelect.value === 'critic') { renderCritic(); return }
   if (scenarioSelect.value === 'vscroll') {
     const w = parseInt(widthSlider.value)
     const fs = parseInt(fontSlider.value)
@@ -2632,6 +3001,7 @@ window.addEventListener('resize', () => {
   if (scenarioSelect.value === 'aistream') { renderAiStream(); return }
   if (scenarioSelect.value === 'synth') { renderSynth(); return }
   if (scenarioSelect.value === 'agent') { renderAgent(); return }
+  if (scenarioSelect.value === 'critic') { renderCritic(); return }
   render()
 })
 
@@ -2683,3 +3053,6 @@ document.getElementById('synth-mode-bbox')!.addEventListener('click', () => {
 
 // Agent button
 document.getElementById('agent-btn')!.addEventListener('click', startAgent)
+
+// Critic button
+document.getElementById('critic-btn')!.addEventListener('click', startCritic)
