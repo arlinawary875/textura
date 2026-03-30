@@ -140,9 +140,41 @@ Release Yoga resources. Mostly useful for tests.
 
 The Textura MCP server gives AI coding agents (Claude Code, Codex) layout vision — compute geometry, detect issues, validate responsive breakpoints, and auto-fix problems. Works with any framework.
 
-### Setup
+### Install
 
-Add to your project's `.mcp.json` (or `~/.claude/settings.json` for global):
+<details>
+<summary>Claude Code</summary>
+
+**One-line install:**
+```bash
+claude mcp add textura npx @razroo/textura-mcp
+```
+
+**Uninstall:**
+```bash
+claude mcp remove textura
+```
+
+Or manually add to `.mcp.json` (project-level) or `~/.claude/settings.json` (global):
+```json
+{
+  "mcpServers": {
+    "textura": {
+      "command": "npx",
+      "args": ["-y", "@razroo/textura-mcp"]
+    }
+  }
+}
+```
+
+To uninstall manually, remove the `textura` entry from the config file.
+
+</details>
+
+<details>
+<summary>OpenAI Codex</summary>
+
+Add to your Codex MCP configuration:
 
 ```json
 {
@@ -155,9 +187,89 @@ Add to your project's `.mcp.json` (or `~/.claude/settings.json` for global):
 }
 ```
 
-For Codex, use the same config in your Codex MCP settings.
+To uninstall, remove the `textura` entry from the config file.
 
-That's it — restart your agent and 4 new tools are available.
+</details>
+
+<details>
+<summary>Cursor</summary>
+
+Open Settings → MCP → Add new MCP server, or add to `.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "textura": {
+      "command": "npx",
+      "args": ["-y", "@razroo/textura-mcp"]
+    }
+  }
+}
+```
+
+To uninstall, remove the entry from MCP settings.
+
+</details>
+
+<details>
+<summary>Windsurf</summary>
+
+Add to `~/.codeium/windsurf/mcp_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "textura": {
+      "command": "npx",
+      "args": ["-y", "@razroo/textura-mcp"]
+    }
+  }
+}
+```
+
+To uninstall, remove the entry from the config file.
+
+</details>
+
+<details>
+<summary>VS Code / Copilot</summary>
+
+**One-line install:**
+```bash
+code --add-mcp '{"name":"textura","command":"npx","args":["-y","@razroo/textura-mcp"]}'
+```
+
+Or add to `.vscode/mcp.json`:
+```json
+{
+  "servers": {
+    "textura": {
+      "command": "npx",
+      "args": ["-y", "@razroo/textura-mcp"]
+    }
+  }
+}
+```
+
+To uninstall, remove the entry from MCP settings or delete the server from the MCP panel.
+
+</details>
+
+<details>
+<summary>Other MCP clients</summary>
+
+Any MCP client that supports stdio transport can use Textura. The server config is:
+
+```json
+{
+  "command": "npx",
+  "args": ["-y", "@razroo/textura-mcp"]
+}
+```
+
+To uninstall, remove the server entry from your client's MCP configuration.
+
+</details>
 
 ### Tools
 
