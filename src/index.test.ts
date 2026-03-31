@@ -213,4 +213,26 @@ describe('text layout (requires browser)', () => {
     expect(result.children[1]!.height).toBe(20)
     expect(result.height).toBe(78)
   })
+
+  test.skip('text in row layout gets intrinsic width, not container width', () => {
+    const tree: BoxNode = {
+      width: 600,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingLeft: 10,
+      paddingRight: 10,
+      children: [
+        { text: 'Hello', font: '13px sans-serif', lineHeight: 18 } satisfies TextNode,
+        { width: 2, height: 14 },
+      ],
+    }
+    const result = computeLayout(tree)
+    const textChild = result.children[0]!
+    const caretChild = result.children[1]!
+    // Text should be much narrower than the 600px container
+    expect(textChild.width).toBeLessThan(100)
+    // Caret should be positioned right after the text, not at the far right
+    expect(caretChild.x).toBeLessThan(120)
+  })
 })

@@ -14,7 +14,7 @@ import {
   Direction,
 } from 'yoga-layout/load'
 import type { Yoga } from 'yoga-layout/load'
-import { prepare, layout, clearCache } from '@chenglou/pretext'
+import { prepare, prepareWithSegments, layout, walkLineRanges, clearCache } from '@chenglou/pretext'
 
 import {
   type LayoutNode,
@@ -213,7 +213,7 @@ function buildNode(desc: LayoutNode): BuildResult {
         _height: number,
         _heightMode: MeasureMode,
       ) => {
-        const prepared = prepare(text, font, whiteSpace ? { whiteSpace } : undefined)
+        const opts = whiteSpace ? { whiteSpace } : undefined
 
         let maxWidth: number
         if (widthMode === MeasureMode.Exactly || widthMode === MeasureMode.AtMost) {
@@ -222,14 +222,29 @@ function buildNode(desc: LayoutNode): BuildResult {
           maxWidth = 1e7
         }
 
-        const result = layout(prepared, maxWidth, lineHeight)
-        lastLineCount = result.lineCount
-        meta.lineCount = lastLineCount
+        if (widthMode === MeasureMode.Exactly) {
+          const prepared = prepare(text, font, opts)
+          const result = layout(prepared, maxWidth, lineHeight)
+          lastLineCount = result.lineCount
+          meta.lineCount = lastLineCount
+          return { width, height: result.height }
+        }
+
+        const prepared = prepareWithSegments(text, font, opts)
+        let contentWidth = 0
+        const lineCount = walkLineRanges(prepared, maxWidth, (line) => {
+          if (line.width > contentWidth) contentWidth = line.width
+        })
+        lastLineCount = lineCount
+        meta.lineCount = lineCount
+        const height = lineCount * lineHeight
 
         const reportedWidth =
-          widthMode === MeasureMode.Undefined ? maxWidth : width
+          widthMode === MeasureMode.AtMost
+            ? Math.min(contentWidth, width)
+            : contentWidth
 
-        return { width: reportedWidth, height: result.height }
+        return { width: reportedWidth, height }
       },
     )
   } else {
